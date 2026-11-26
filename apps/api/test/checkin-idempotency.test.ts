@@ -35,7 +35,7 @@ async function newSession(email: string): Promise<string> {
   return authSessionResponseSchema.parse(await verify.json()).token;
 }
 
-async function userId(email: string): Promise<string> {
+async function findUserId(email: string): Promise<string> {
   const row = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
     .bind(email)
     .first<{ id: string }>();
@@ -88,7 +88,7 @@ describe("check-in idempotency", () => {
   it("returns conflict while an idempotency claim is in progress", async () => {
     // Given a fresh, incomplete claim for the same user and key
     const token = await newSession("in-progress@example.com");
-    const id = await userId("in-progress@example.com");
+    const id = await findUserId("in-progress@example.com");
     const key = crypto.randomUUID();
     const now = new Date();
     await env.DB.prepare(
@@ -121,7 +121,7 @@ describe("check-in idempotency", () => {
   it("releases a failed claim so the retry surfaces the operation", async () => {
     // Given a signed-in user and a claim whose operation throws
     const token = await newSession("failed-claim@example.com");
-    const id = await userId("failed-claim@example.com");
+    const id = await findUserId("failed-claim@example.com");
     const key = crypto.randomUUID();
 
     // When the operation fails
@@ -165,7 +165,7 @@ describe("check-in idempotency", () => {
   it("treats an empty idempotency header as no key", async () => {
     // Given a client that sends an empty header
     const token = await newSession("empty-key@example.com");
-    const id = await userId("empty-key@example.com");
+    const id = await findUserId("empty-key@example.com");
     const input = { promptId: "trigger", answer: "stress" };
 
     // When two check-ins are sent
@@ -184,7 +184,7 @@ describe("check-in idempotency", () => {
   it("rejects a changed answer after the idempotency claim is gone", async () => {
     // Given a stored check-in
     const token = await newSession("changed-answer@example.com");
-    const id = await userId("changed-answer@example.com");
+    const id = await findUserId("changed-answer@example.com");
     const key = crypto.randomUUID();
     await post("/api/check-in", { promptId: "trigger", answer: "stress" }, token, "local", key);
 
@@ -221,7 +221,7 @@ describe("check-in idempotency", () => {
   it("does not double-write when the idempotency claim is gone", async () => {
     // Given a check-in that already committed
     const token = await newSession("dedupe-write@example.com");
-    const id = await userId("dedupe-write@example.com");
+    const id = await findUserId("dedupe-write@example.com");
     const key = crypto.randomUUID();
     const input = { promptId: "trigger", answer: "stress" };
     const first = await post("/api/check-in", input, token, "local", key);
@@ -246,7 +246,7 @@ describe("check-in idempotency", () => {
   it("takes over a stale idempotency claim", async () => {
     // Given a claim that has been abandoned for longer than the stale window
     const token = await newSession("stale@example.com");
-    const id = await userId("stale@example.com");
+    const id = await findUserId("stale@example.com");
     const key = crypto.randomUUID();
     await env.DB.prepare(
       `INSERT INTO idempotency_keys

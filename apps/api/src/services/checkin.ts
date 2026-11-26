@@ -193,13 +193,13 @@ export async function recordCheckIn(
     if (!existing) {
       throw new Error("Check-in conflict without a stored row");
     }
-    const same =
+    const isSameRequest =
       existing.prompt_id === input.promptId &&
       existing.answer === input.answer &&
       (existing.feeling ?? null) === (input.feeling ?? null) &&
       (existing.context ?? null) === (input.context ?? null) &&
       (existing.note ?? null) === (input.note ?? null);
-    if (!same) {
+    if (!isSameRequest) {
       throw new HTTPException(400, { message: "Idempotency key reused with a different request" });
     }
   }
