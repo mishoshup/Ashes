@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { filterDiff } from "./review/diff";
 import { parseReviewJson } from "./review/parse";
 import { buildSystemPrompt, buildUserPrompt, loadRules } from "./review/prompt";
 import { reviewResultSchema } from "./review/schema";
@@ -209,10 +210,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const diff = await getDiff(env);
+  const rawDiff = await getDiff(env);
+  const filtered = filterDiff(rawDiff);
+  const diff = filtered.diff;
   if (!diff.trim()) {
     console.log("Agent review skipped: empty diff.");
     return;
+  }
+  if (filtered.removedFiles > 0) {
+    console.log(`Agent review: skipped ${filtered.removedFiles} lockfile/generated/asset file(s).`);
   }
   if (diff.length > MAX_DIFF_CHARS) {
     console.log(
@@ -245,7 +251,14 @@ async function main(): Promise<void> {
   });
 
   if (env.ci) {
-    await postComment(env, comment);
+    try {
+      await postComment(env, comment);
+    } catch (error) {
+      // Comment posting is infrastructure; keep verified blocking findings blocking.
+      console.error(
+        `Agent review comment failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   } else {
     console.log(comment);
   }
@@ -263,5 +276,5 @@ try {
 } catch (error) {
   // Review infrastructure must not replace deterministic CI. Surface the failure, do not block.
   console.error(`Agent review failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 0;
+  process.exitCode ??= 0;
 }

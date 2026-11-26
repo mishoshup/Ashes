@@ -49,6 +49,7 @@ describe("validateFindings", () => {
         },
       ],
     });
+    // Then the finding is kept, nothing is dropped, and the verdict blocks
     expect(result.result.findings).toHaveLength(1);
     expect(result.dropped).toBe(0);
     expect(result.blocking).toBe(true);
@@ -66,6 +67,7 @@ describe("validateFindings", () => {
       why: "Wrong middleware order.",
       fix: "Move middleware.",
     };
+    // When the review is validated
     const result = validateFindings(diff, {
       ...base,
       findings: [
@@ -75,6 +77,8 @@ describe("validateFindings", () => {
         { ...finding, evidence: "not in the diff" },
       ],
     });
+
+    // Then only one survives and the other three are dropped
     expect(result.result.findings).toHaveLength(1);
     expect(result.dropped).toBe(3);
     expect(result.blocking).toBe(false);
@@ -135,6 +139,8 @@ index 111..222 100644
         },
       ],
     });
+
+    // Then the low-severity finding is not blocking and the verdict stays approve
     expect(result.blocking).toBe(false);
     expect(result.result.verdict).toBe("approve");
   });
