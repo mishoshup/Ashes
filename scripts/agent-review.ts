@@ -217,6 +217,9 @@ async function main(): Promise<void> {
     console.log("Agent review skipped: empty diff.");
     return;
   }
+  if (filtered.deletedFiles > 0) {
+    console.log(`Agent review: collapsed ${filtered.deletedFiles} deleted file(s).`);
+  }
   if (filtered.removedFiles > 0) {
     console.log(`Agent review: skipped ${filtered.removedFiles} lockfile/generated/asset file(s).`);
   }
