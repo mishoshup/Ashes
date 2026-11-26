@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { layout, palette, sans, serif } from "@/constants/ashes";
+import { routes } from "@/libs/navigation/routes";
 
 export function Mark() {
   return (
@@ -38,7 +39,7 @@ export function TopBar({ back = false, right }: { back?: boolean; right?: ReactN
       router.back();
       return;
     }
-    router.replace("/");
+    router.replace(routes.home);
   };
 
   return (
@@ -140,7 +141,7 @@ export function NotFound({ message = "This page isn't here." }: { message?: stri
   return (
     <View style={styles.notFound}>
       <Text style={styles.notFoundText}>{message}</Text>
-      <CtaLink href="/" label="Back to Ashes" />
+      <CtaLink href={routes.home} label="Back to Ashes" />
     </View>
   );
 }

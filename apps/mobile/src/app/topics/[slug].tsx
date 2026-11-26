@@ -1,3 +1,4 @@
+import { slugSchema } from "@ashes/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -17,14 +18,14 @@ import { palette, sans, serif } from "@/constants/ashes";
 import { triggerLabels } from "@/features/explore/labels";
 import { topicQuery } from "@/features/explore/queries";
 import { ApiError } from "@/lib/api";
-
-const SLUG = /^[a-z0-9-]+$/;
+import { routes } from "@/libs/navigation/routes";
 
 export default function TopicScreen() {
   const params = useLocalSearchParams<{ slug?: string | string[] }>();
-  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
-  const valid = typeof slug === "string" && SLUG.test(slug);
-  const topic = useQuery({ ...topicQuery(slug ?? ""), enabled: valid });
+  const rawSlug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+  const parsed = slugSchema.safeParse(rawSlug);
+  const valid = parsed.success;
+  const topic = useQuery({ ...topicQuery(parsed.success ? parsed.data : ""), enabled: valid });
   const [nudge, setNudge] = useState(false);
 
   if (!valid) {
@@ -102,10 +103,7 @@ export default function TopicScreen() {
           <Text style={styles.relatedLabel}>Others exploring this</Text>
           <Text style={styles.channel}>#{data.channel.name}</Text>
           <CtaLink
-            href={{
-              pathname: "/communities/[slug]",
-              params: { slug: data.channel.communitySlug },
-            }}
+            href={routes.community(data.channel.communitySlug)}
             label="See how others experience this"
           />
         </View>

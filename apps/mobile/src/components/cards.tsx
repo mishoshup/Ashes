@@ -4,10 +4,11 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { palette, sans, serif } from "@/constants/ashes";
 import { triggerLabels } from "@/features/explore/labels";
+import { routes } from "@/libs/navigation/routes";
 
 export function TopicCard({ topic }: { topic: PsychTopicSummary }) {
   return (
-    <Link href={{ pathname: "/topics/[slug]", params: { slug: topic.slug } }} asChild>
+    <Link href={routes.topic(topic.slug)} asChild>
       <Pressable style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
         <Text style={styles.eyebrow}>{triggerLabels[topic.trigger]}</Text>
         <Text style={styles.title}>{topic.title}</Text>
@@ -20,7 +21,7 @@ export function TopicCard({ topic }: { topic: PsychTopicSummary }) {
 export function CommunityCard({ community }: { community: CommunityDirectory }) {
   const channelLabel = community.channels.length === 1 ? "channel" : "channels";
   return (
-    <Link href={{ pathname: "/communities/[slug]", params: { slug: community.slug } }} asChild>
+    <Link href={routes.community(community.slug)} asChild>
       <Pressable style={({ pressed }) => [styles.community, pressed && styles.pressed]}>
         <View style={[styles.monogram, { borderColor: community.accent }]}>
           <Text style={[styles.monogramText, { color: community.accent }]}>

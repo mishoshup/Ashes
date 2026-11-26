@@ -6,6 +6,7 @@ import {
   promptIdSchema,
   psychTopicSchema,
   psychTopicsResponseSchema,
+  slugSchema,
 } from "@ashes/contracts";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -20,6 +21,7 @@ import {
   recordCheckIn,
   topicBySlug,
 } from "../services/checkin";
+import { hashRequest, withIdempotency } from "../services/idempotency";
 import type { AppEnv } from "../types";
 
 export const checkInRoutes = new Hono<AppEnv>();
@@ -47,8 +49,21 @@ checkInRoutes.post("/", requireAuth, async (c) => {
     c.header("Retry-After", "60");
     throw new HTTPException(429, { message: "Take a moment, then try again" });
   }
-  const pattern = await recordCheckIn(c.env, user.id, parsed.data, new Date());
-  return c.json(checkInResponseSchema.parse({ ok: true, pattern }));
+  const now = new Date();
+  const response = await withIdempotency(
+    c.env,
+    user.id,
+    c.req.header("Idempotency-Key"),
+    await hashRequest(parsed.data),
+    checkInResponseSchema,
+    now,
+    async () =>
+      checkInResponseSchema.parse({
+        ok: true,
+        pattern: await recordCheckIn(c.env, user.id, parsed.data, now),
+      }),
+  );
+  return c.json(response);
 });
 
 export const insightRoutes = new Hono<AppEnv>();
@@ -65,7 +80,11 @@ topicRoutes.get("/", async (c) => {
 });
 
 topicRoutes.get("/:slug", async (c) => {
-  const row = await topicBySlug(c.env, c.req.param("slug"));
+  const slug = slugSchema.safeParse(c.req.param("slug"));
+  if (!slug.success) {
+    throw new HTTPException(404, { message: "Topic not found" });
+  }
+  const row = await topicBySlug(c.env, slug.data);
   const topic = row ? publicTopic(row) : null;
   if (!topic) {
     throw new HTTPException(404, { message: "Topic not found" });

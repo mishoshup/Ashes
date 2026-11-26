@@ -13,6 +13,7 @@ import {
 import { CommunityCard, TopicCard } from "@/components/cards";
 import { palette, sans, serif } from "@/constants/ashes";
 import { communitiesQuery, topicsQuery } from "@/features/explore/queries";
+import { routes } from "@/libs/navigation/routes";
 
 export default function HomeScreen() {
   const topics = useQuery(topicsQuery);
@@ -34,7 +35,7 @@ export default function HomeScreen() {
           decide what it means.
         </Text>
         <View style={styles.heroAction}>
-          <CtaLink href="/topics" label="Explore your habits" />
+          <CtaLink href={routes.topics} label="Explore your habits" />
         </View>
         <Text style={styles.quiet}>No account needed to look around.</Text>
       </View>
@@ -56,7 +57,7 @@ export default function HomeScreen() {
               <TopicCard key={topic.slug} topic={topic} />
             ))}
           </View>
-          <TextLink href="/topics" label="See all questions" />
+          <TextLink href={routes.topics} label="See all questions" />
         </View>
       )}
 
@@ -79,7 +80,7 @@ export default function HomeScreen() {
               </View>
             ))}
           </View>
-          <TextLink href="/communities" label="See all communities" />
+          <TextLink href={routes.communities} label="See all communities" />
         </View>
       )}
 

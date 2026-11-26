@@ -31,7 +31,7 @@ export async function topicByTrigger(env: Env, trigger: Trigger): Promise<CheckI
     `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
             c.slug AS community_slug
      FROM psych_topics pt
-     LEFT JOIN channels ch ON ch.id = pt.channel_id
+     LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
      LEFT JOIN communities c ON c.id = ch.community_id
      WHERE pt.trigger = ?`,
   )
@@ -44,7 +44,7 @@ export async function topicBySlug(env: Env, slug: string): Promise<CheckInTopicR
     `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
             c.slug AS community_slug
      FROM psych_topics pt
-     LEFT JOIN channels ch ON ch.id = pt.channel_id
+     LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
      LEFT JOIN communities c ON c.id = ch.community_id
      WHERE pt.slug = ?`,
   )
@@ -65,7 +65,7 @@ export async function listTopics(env: Env) {
     `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
             c.slug AS community_slug
      FROM psych_topics pt
-     LEFT JOIN channels ch ON ch.id = pt.channel_id
+     LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
      LEFT JOIN communities c ON c.id = ch.community_id
      ORDER BY CASE pt.trigger
        WHEN 'stress' THEN 0 WHEN 'social' THEN 1 WHEN 'boredom' THEN 2

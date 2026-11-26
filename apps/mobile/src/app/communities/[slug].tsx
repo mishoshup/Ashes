@@ -1,3 +1,4 @@
+import { slugSchema } from "@ashes/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -8,12 +9,11 @@ import { palette, sans, serif } from "@/constants/ashes";
 import { channelKindLabels } from "@/features/explore/labels";
 import { communitiesQuery } from "@/features/explore/queries";
 
-const SLUG = /^[a-z0-9-]+$/;
-
 export default function CommunityScreen() {
   const params = useLocalSearchParams<{ slug?: string | string[] }>();
-  const slug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
-  const valid = typeof slug === "string" && SLUG.test(slug);
+  const rawSlug = Array.isArray(params.slug) ? params.slug[0] : params.slug;
+  const parsed = slugSchema.safeParse(rawSlug);
+  const valid = parsed.success;
   const communities = useQuery({ ...communitiesQuery, enabled: valid });
   const [nudge, setNudge] = useState(false);
 
@@ -49,7 +49,9 @@ export default function CommunityScreen() {
     );
   }
 
-  const community = communities.data.items.find((item) => item.slug === slug);
+  const community = communities.data.items.find(
+    (item) => item.slug === (parsed.success ? parsed.data : ""),
+  );
   if (!community) {
     return (
       <Page>

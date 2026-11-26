@@ -10,13 +10,20 @@ import {
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-async function post(path: string, body: unknown, token?: string, ip = "local") {
+async function post(
+  path: string,
+  body: unknown,
+  token?: string,
+  ip = "local",
+  idempotencyKey?: string,
+) {
   return SELF.fetch(`https://example.com${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "CF-Connecting-IP": ip,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -182,6 +189,72 @@ describe("situation prompts", () => {
 
     // Then it is rejected
     expect(response.status).toBe(400);
+  });
+
+  it("replays a check-in with the same idempotency key", async () => {
+    // Given a signed-in user and one idempotency key
+    const token = await newSession("idempotent@example.com");
+    const key = crypto.randomUUID();
+    const input = { promptId: "trigger", answer: "stress" };
+
+    // When the same check-in is sent twice
+    const first = await post("/api/check-in", input, token, "local", key);
+    const second = await post("/api/check-in", input, token, "local", key);
+
+    // Then the second response is a replay, not a second check-in
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const firstBody = checkInResponseSchema.parse(await first.json());
+    const secondBody = checkInResponseSchema.parse(await second.json());
+    expect(firstBody.pattern?.count).toBe(1);
+    expect(secondBody.pattern?.count).toBe(1);
+
+    // And the key cannot be reused for a different answer
+    const conflict = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "social" },
+      token,
+      "local",
+      key,
+    );
+    expect(conflict.status).toBe(400);
+  });
+
+  it("returns not found for an invalid topic slug", async () => {
+    const response = await SELF.fetch("https://example.com/api/topics/Not%20A%20Slug");
+    expect(response.status).toBe(404);
+  });
+
+  it("does not expose a private channel on a public topic", async () => {
+    // Given a public topic linked to a private channel
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO communities
+         (id, slug, name, description, monogram, accent, visibility, created_at, updated_at)
+         VALUES ('com_private', 'private', 'Private', 'Private community.', 'PV', '#000000',
+         'private', '2026-11-01T09:00:00.000Z', '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO channels
+         (id, community_id, slug, name, description, kind, visibility, created_at)
+         VALUES ('chn_private', 'com_private', 'private-room', 'private-room',
+         'Members only.', 'chat', 'private', '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO psych_topics
+         (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at)
+         VALUES ('identity', 'identity', 'Smoking and identity', 'Identity.', 'A short explanation.',
+         'Who are you without it?', 'Maybe smoking is part of how you see yourself.',
+         'chn_private', '2026-11-01T09:00:00.000Z')`,
+      ),
+    ]);
+
+    // When the public topic is requested
+    const response = await SELF.fetch("https://example.com/api/topics/identity");
+
+    // Then the private channel metadata is not returned
+    expect(response.status).toBe(200);
+    expect(psychTopicSchema.parse(await response.json()).channel).toBeNull();
   });
 
   it("requires a session", async () => {
