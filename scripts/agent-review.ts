@@ -20,6 +20,7 @@ type Env = {
   token?: string;
   repo?: string;
   pr?: string;
+  diffFile?: string;
 };
 
 const apiResponseSchema = z.object({
@@ -48,6 +49,7 @@ function readEnv(): Env {
     token: process.env.GITHUB_TOKEN,
     repo: process.env.GITHUB_REPOSITORY,
     pr: process.env.PR_NUMBER,
+    diffFile: process.env.REVIEW_DIFF_FILE,
   };
 }
 
@@ -65,6 +67,9 @@ async function run(command: string[]): Promise<string> {
 }
 
 async function getDiff(env: Env): Promise<string> {
+  if (env.diffFile) {
+    return Bun.file(env.diffFile).text();
+  }
   if (env.ci) {
     if (!env.pr) {
       throw new Error("PR_NUMBER is required in CI");

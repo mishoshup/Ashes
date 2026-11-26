@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
 
 type Result = { code: number; stdout: string; stderr: string };
@@ -36,4 +39,44 @@ describe("agent review gate", () => {
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Local review skipped");
   });
+
+  it("fails in CI when the filtered diff is too large", async () => {
+    // Given a diff over the review budget
+    const result = await runWithDiff(
+      `diff --git a/apps/api/src/huge.ts b/apps/api/src/huge.ts
+--- a/apps/api/src/huge.ts
++++ b/apps/api/src/huge.ts
+@@ -1 +1 @@
++${"a".repeat(130_000)}
+`,
+    );
+
+    // Then the job fails instead of silently skipping
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("diff is");
+  });
+
+  it("fails in CI when the diff is empty", async () => {
+    // Given no reviewable diff
+    const result = await runWithDiff("");
+
+    // Then the job fails instead of silently skipping
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("empty diff");
+  });
 });
+
+async function runWithDiff(content: string): Promise<Result> {
+  const dir = mkdtempSync(join(tmpdir(), "ashes-review-"));
+  const file = join(dir, "review.diff");
+  writeFileSync(file, content);
+  try {
+    return await run(["--ci"], {
+      REVIEW_API_KEY: "test-key",
+      REVIEW_MODEL: "test-model",
+      REVIEW_DIFF_FILE: file,
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
