@@ -8,6 +8,7 @@ import {
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 
+import { checkRateLimit } from "../lib/rate-limit";
 import { clearSessionCookie } from "../lib/session-cookie";
 import { requireAuth } from "../middleware/auth";
 import { listSessions, revokeAllSessions, revokeSessionById } from "../services/sessions";
@@ -29,17 +30,25 @@ meRoutes.get("/", requireAuth, (c) => {
 meRoutes.get("/sessions", requireAuth, async (c) => {
   noStore(c);
   const user = c.get("user");
+  if (!(await checkRateLimit(c.env, `sessions:list:${user.id}`, 60, 60))) {
+    c.header("Retry-After", "60");
+    throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
+  }
   const items = await listSessions(c.env, user.id, c.get("sessionToken"), new Date());
   return c.json(sessionsResponseSchema.parse({ items }));
 });
 
 meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
+  const user = c.get("user");
+  if (!(await checkRateLimit(c.env, `sessions:revoke-all:${user.id}`, 10, 60))) {
+    c.header("Retry-After", "60");
+    throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
+  }
   const raw: unknown = await c.req.json().catch(() => ({}));
   const parsed = revokeAllSessionsInputSchema.safeParse(raw ?? {});
   if (!parsed.success) {
     throw new HTTPException(400, { message: "Invalid revoke request" });
   }
-  const user = c.get("user");
   const revoked = await revokeAllSessions(
     c.env,
     user.id,
@@ -55,11 +64,15 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
 });
 
 meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
+  const user = c.get("user");
+  if (!(await checkRateLimit(c.env, `sessions:revoke-one:${user.id}`, 30, 60))) {
+    c.header("Retry-After", "60");
+    throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
+  }
   const parsed = idSchema.safeParse(c.req.param("id"));
   if (!parsed.success) {
     throw new HTTPException(404, { message: "Session not found" });
   }
-  const user = c.get("user");
   const revoked = await revokeSessionById(c.env, user.id, parsed.data, new Date());
   if (!revoked) {
     throw new HTTPException(404, { message: "Session not found" });

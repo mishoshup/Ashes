@@ -231,6 +231,49 @@ describe("sessions", () => {
     expect((await me(first)).status).toBe(200);
   });
 
+  it("rejects an oversized session body", async () => {
+    // Given a mobile session
+    const token = await mobileSession("body-cap@example.com");
+
+    // When revoke-all receives a body over the cap
+    const response = await SELF.fetch("https://example.com/api/me/sessions/revoke-all", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ padding: "x".repeat(300 * 1024) }),
+    });
+
+    // Then it is rejected before parsing
+    expect(response.status).toBe(413);
+  });
+
+  it("rate limits revoke-all", async () => {
+    // Given a mobile session
+    const token = await mobileSession("rate-limit-sessions@example.com");
+    const request = () =>
+      SELF.fetch("https://example.com/api/me/sessions/revoke-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ keepCurrent: true }),
+      });
+
+    // When the endpoint is called past its allowance
+    for (let index = 0; index < 10; index += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- each call must consume one rate-limit slot
+      expect((await request()).status).toBe(200);
+    }
+    const blocked = await request();
+
+    // Then the next call is throttled
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).toBe("60");
+  });
+
   it("rotates on password change and revokes the replacement on token reuse", async () => {
     // Given a mobile session
     const first = await mobileSession("rotation@example.com");

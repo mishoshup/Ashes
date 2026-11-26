@@ -1,3 +1,4 @@
+import { bodyLimit } from "hono/body-limit";
 import { Hono } from "hono";
 import { hasSessionCookie } from "./lib/session-cookie";
 import { HTTPException } from "hono/http-exception";
@@ -20,6 +21,15 @@ export function createApp(): Hono<AppEnv> {
     c.header("X-Request-Id", requestId);
     await next();
   });
+  app.use(
+    "*",
+    bodyLimit({
+      maxSize: 256 * 1024,
+      onError: () => {
+        throw new HTTPException(413, { message: "Request body too large" });
+      },
+    }),
+  );
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
     const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
@@ -124,7 +134,9 @@ export function createApp(): Hono<AppEnv> {
                   ? "not_found"
                   : error.status === 429
                     ? "rate_limited"
-                    : "bad_request",
+                    : error.status === 413
+                      ? "payload_too_large"
+                      : "bad_request",
             message: error.message,
             requestId,
           },
