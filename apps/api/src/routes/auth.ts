@@ -20,7 +20,6 @@ import { clearSessionCookie, readSessionCookie, setSessionCookie } from "../lib/
 import { revokeSession, rotateSession, sessionMetaFromRequest } from "../services/sessions";
 import {
   createLoginToken,
-  createSession,
   finalizeLoginToken,
   findLoginRequest,
   findOrCreateUser,
@@ -257,7 +256,16 @@ authRoutes.post("/password", requireAuth, async (c) => {
     },
     () => ({ ok: true }),
     async () => {
-      const token = await createSession(c.env, user.id, now, await sessionMetaFromRequest(c));
+      const token = await rotateSession(
+        c.env,
+        user.id,
+        c.get("sessionToken"),
+        now,
+        await sessionMetaFromRequest(c),
+      );
+      if (!token) {
+        throw new HTTPException(401, { message: "Session expired. Sign in again." });
+      }
       if (c.get("authKind") === "cookie") {
         setSessionCookie(c, token, c.env);
         return setPasswordResponseSchema.parse({ ok: true });
