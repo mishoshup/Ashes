@@ -153,6 +153,7 @@ this; "it works" is not a justification.
 - Bundle-size budget, route-count budget, Expo export for iOS + Android.
 - Web/tablet Playwright smoke; screenshots for the 5 tabs, channel, article, composer, errors.
 - Agent review: deterministic gates first, then read-only reviewer; verified critical/high findings block.
+- A skipped reviewer is a failed gate. Missing config, oversized diff, empty diff, or API failure fails the job; never merge on a skipped review.
 - `wrangler deploy --dry-run` for the API; D1 migration check; DO binding check.
 - Nightly: full lint, full tests, dependency/license audit, EAS Android + iOS simulator builds.
 
