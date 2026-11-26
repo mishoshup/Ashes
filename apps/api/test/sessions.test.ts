@@ -1,6 +1,8 @@
 import {
   authSessionResponseSchema,
   magicLinkResponseSchema,
+  revokeAllSessionsResponseSchema,
+  revokeSessionResponseSchema,
   sessionsResponseSchema,
   setPasswordResponseSchema,
   webAuthSessionResponseSchema,
@@ -158,7 +160,8 @@ describe("sessions", () => {
       method: "DELETE",
       headers: { Authorization: `Bearer ${first}` },
     });
-    expect(revoke.status).toBe(204);
+    expect(revoke.status).toBe(200);
+    expect(revokeSessionResponseSchema.parse(await revoke.json()).ok).toBe(true);
 
     // Then the revoked session is rejected and the current one still works
     expect((await me(second)).status).toBe(401);
@@ -184,6 +187,36 @@ describe("sessions", () => {
     // Then the other is revoked and the current survives
     expect((await me(second)).status).toBe(401);
     expect((await me(first)).status).toBe(200);
+  });
+
+  it("replays session revocations with the same idempotency key", async () => {
+    // Given two sessions and one key
+    const first = await mobileSession("idempotent-revoke@example.com");
+    const second = await mobileSession("idempotent-revoke@example.com");
+    const key = crypto.randomUUID();
+    const revokeAll = () =>
+      SELF.fetch("https://example.com/api/me/sessions/revoke-all", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${first}`,
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify({ shouldKeepCurrent: true }),
+      });
+
+    // When revoke-all is retried with the same key
+    const firstCall = await revokeAll();
+    const secondCall = await revokeAll();
+
+    // Then the count is replayed and the other session is still revoked
+    expect(firstCall.status).toBe(200);
+    expect(secondCall.status).toBe(200);
+    const firstBody = revokeAllSessionsResponseSchema.parse(await firstCall.json());
+    const secondBody = revokeAllSessionsResponseSchema.parse(await secondCall.json());
+    expect(firstBody.revoked).toBe(1);
+    expect(secondBody.revoked).toBe(1);
+    expect((await me(second)).status).toBe(401);
   });
 
   it("revokes all sessions including the current one", async () => {

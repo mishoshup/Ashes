@@ -89,6 +89,11 @@ export const revokeAllSessionsResponseSchema = z.object({
 });
 export type RevokeAllSessionsResponse = z.infer<typeof revokeAllSessionsResponseSchema>;
 
+export const revokeSessionResponseSchema = z.object({
+  ok: z.literal(true),
+});
+export type RevokeSessionResponse = z.infer<typeof revokeSessionResponseSchema>;
+
 export const setPasswordResponseSchema = z.object({
   ok: z.literal(true),
   token: z.string().optional(),

@@ -3,6 +3,7 @@ import {
   meResponseSchema,
   revokeAllSessionsInputSchema,
   revokeAllSessionsResponseSchema,
+  revokeSessionResponseSchema,
   sessionsResponseSchema,
 } from "@ashes/contracts";
 import { Hono } from "hono";
@@ -11,6 +12,7 @@ import { HTTPException } from "hono/http-exception";
 import { checkRateLimit } from "../lib/rate-limit";
 import { clearSessionCookie } from "../lib/session-cookie";
 import { requireAuth } from "../middleware/auth";
+import { hashRequest, withIdempotency } from "../services/idempotency";
 import { listSessions, revokeAllSessions, revokeSessionById } from "../services/sessions";
 import type { AppEnv } from "../types";
 
@@ -49,18 +51,30 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
   if (!parsed.success) {
     throw new HTTPException(400, { message: "Invalid revoke request" });
   }
-  const revoked = await revokeAllSessions(
+  const now = new Date();
+  const response = await withIdempotency(
     c.env,
     user.id,
-    c.get("sessionToken"),
-    parsed.data.shouldKeepCurrent,
-    new Date(),
+    c.req.header("Idempotency-Key"),
+    await hashRequest(parsed.data),
+    revokeAllSessionsResponseSchema,
+    now,
+    async () => {
+      const revoked = await revokeAllSessions(
+        c.env,
+        user.id,
+        c.get("sessionToken"),
+        parsed.data.shouldKeepCurrent,
+        now,
+      );
+      if (!parsed.data.shouldKeepCurrent) {
+        clearSessionCookie(c, c.env);
+      }
+      return { revoked };
+    },
   );
-  if (!parsed.data.shouldKeepCurrent) {
-    clearSessionCookie(c, c.env);
-  }
   noStore(c);
-  return c.json(revokeAllSessionsResponseSchema.parse({ revoked }));
+  return c.json(response);
 });
 
 meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
@@ -73,13 +87,25 @@ meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
   if (!parsed.success) {
     throw new HTTPException(404, { message: "Session not found" });
   }
-  const revoked = await revokeSessionById(c.env, user.id, parsed.data, new Date());
-  if (!revoked) {
-    throw new HTTPException(404, { message: "Session not found" });
-  }
-  if (c.get("sessionId") === parsed.data) {
-    clearSessionCookie(c, c.env);
-  }
+  const now = new Date();
+  const response = await withIdempotency(
+    c.env,
+    user.id,
+    c.req.header("Idempotency-Key"),
+    await hashRequest({ sessionId: parsed.data }),
+    revokeSessionResponseSchema,
+    now,
+    async () => {
+      const revoked = await revokeSessionById(c.env, user.id, parsed.data, now);
+      if (!revoked) {
+        throw new HTTPException(404, { message: "Session not found" });
+      }
+      if (c.get("sessionId") === parsed.data) {
+        clearSessionCookie(c, c.env);
+      }
+      return { ok: true as const };
+    },
+  );
   noStore(c);
-  return c.body(null, 204);
+  return c.json(response);
 });
