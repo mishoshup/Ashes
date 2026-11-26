@@ -155,8 +155,9 @@ export async function recordCheckIn(
   clientId?: string,
 ) {
   const tags = [...new Set(promptTags(input.promptId, input.answer))];
-  const id = clientId
-    ? `chk_${(await hashRequest({ userId, clientId })).slice(0, 22)}`
+  const normalizedClientId = clientId?.trim() || undefined;
+  const id = normalizedClientId
+    ? `chk_${(await hashRequest({ userId, clientId: normalizedClientId })).slice(0, 22)}`
     : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
   const statements = [
     env.DB.prepare(
@@ -171,7 +172,7 @@ export async function recordCheckIn(
       input.feeling ?? null,
       input.context ?? null,
       input.note ?? null,
-      clientId ?? null,
+      normalizedClientId ?? null,
       now.toISOString(),
     ),
     ...tags.map((tag) =>

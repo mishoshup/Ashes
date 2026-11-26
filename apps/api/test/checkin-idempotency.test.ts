@@ -21,7 +21,7 @@ async function post(
       "Content-Type": "application/json",
       "CF-Connecting-IP": ip,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      ...(idempotencyKey !== undefined ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -160,6 +160,25 @@ describe("check-in idempotency", () => {
       key,
     );
     expect(retry.status).toBe(200);
+  });
+
+  it("treats an empty idempotency header as no key", async () => {
+    // Given a client that sends an empty header
+    const token = await newSession("empty-key@example.com");
+    const id = await userId("empty-key@example.com");
+    const input = { promptId: "trigger", answer: "stress" };
+
+    // When two check-ins are sent
+    const first = await post("/api/check-in", input, token, "local", "");
+    const second = await post("/api/check-in", input, token, "local", "");
+
+    // Then both are written, with no NULL-sentinel collision
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM check_ins WHERE user_id = ?")
+      .bind(id)
+      .first<{ count: number }>();
+    expect(count?.count).toBe(2);
   });
 
   it("does not double-write when the idempotency claim is gone", async () => {
