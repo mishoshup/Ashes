@@ -300,12 +300,14 @@ describe("sessions", () => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        Origin: "http://localhost:8081",
       },
       body: JSON.stringify({ padding: "x".repeat(300 * 1024) }),
     });
 
-    // Then it is rejected before parsing
+    // Then it is rejected before parsing, with readable CORS headers
     expect(response.status).toBe(413);
+    expect(response.headers.get("access-control-allow-origin")).toBe("http://localhost:8081");
   });
 
   it("rate limits revoke-all", async () => {

@@ -21,15 +21,6 @@ export function createApp(): Hono<AppEnv> {
     c.header("X-Request-Id", requestId);
     await next();
   });
-  app.use(
-    "*",
-    bodyLimit({
-      maxSize: 256 * 1024,
-      onError: () => {
-        throw new HTTPException(413, { message: "Request body too large" });
-      },
-    }),
-  );
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
     const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
@@ -54,6 +45,15 @@ export function createApp(): Hono<AppEnv> {
     }
     await next();
   });
+  app.use(
+    "*",
+    bodyLimit({
+      maxSize: 256 * 1024,
+      onError: () => {
+        throw new HTTPException(413, { message: "Request body too large" });
+      },
+    }),
+  );
   app.options("*", (c) => {
     const origin = c.req.header("Origin");
     const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
