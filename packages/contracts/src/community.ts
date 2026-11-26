@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { channelSummarySchema } from "./channel";
-import { hexColorSchema, idSchema, visibilitySchema } from "./common";
+import { channelKindSchema, hexColorSchema, idSchema, visibilitySchema } from "./common";
 import { eventSchema } from "./event";
 import { userSummarySchema } from "./user";
 
@@ -31,3 +31,28 @@ export const communityDetailSchema = z.object({
   role: z.enum(["member", "moderator"]).nullable(),
 });
 export type CommunityDetail = z.infer<typeof communityDetailSchema>;
+
+export const communityDirectoryChannelSchema = z.object({
+  id: idSchema,
+  slug: z.string(),
+  name: z.string(),
+  description: z.string(),
+  kind: channelKindSchema,
+});
+export type CommunityDirectoryChannel = z.infer<typeof communityDirectoryChannelSchema>;
+
+export const communityDirectorySchema = z.object({
+  id: idSchema,
+  slug: z.string(),
+  name: z.string(),
+  description: z.string(),
+  monogram: z.string().min(1).max(3),
+  accent: hexColorSchema,
+  channels: z.array(communityDirectoryChannelSchema),
+});
+export type CommunityDirectory = z.infer<typeof communityDirectorySchema>;
+
+export const communitiesResponseSchema = z.object({
+  items: z.array(communityDirectorySchema),
+});
+export type CommunitiesResponse = z.infer<typeof communitiesResponseSchema>;

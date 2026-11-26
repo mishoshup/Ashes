@@ -153,6 +153,15 @@ describe("situation prompts", () => {
     expect(psychTopicSchema.parse(await response.json()).title).toContain("stressed");
   });
 
+  it("serves a sample psychology topic before registration", async () => {
+    // When a visitor opens a topic without a session
+    const response = await SELF.fetch("https://example.com/api/topics/stress");
+
+    // Then the editorial sample is public
+    expect(response.status).toBe(200);
+    expect(psychTopicSchema.parse(await response.json()).slug).toBe("stress");
+  });
+
   it("rejects an option that does not belong to the prompt", async () => {
     // Given a signed-in user
     const token = await newSession("invalid@example.com");

@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { authRoutes, meRoutes } from "./routes/auth";
 import { checkInRoutes, insightRoutes, topicRoutes } from "./routes/checkin";
+import { communityRoutes } from "./routes/communities";
 import type { AppEnv } from "./types";
 
 const SERVICE = "ashes-api";
@@ -58,6 +59,7 @@ export function createApp(): Hono<AppEnv> {
   app.route("/api/auth", authRoutes);
   app.route("/api/me", meRoutes);
   app.route("/api/check-in", checkInRoutes);
+  app.route("/api/communities", communityRoutes);
   app.route("/api/insights", insightRoutes);
   app.route("/api/topics", topicRoutes);
 

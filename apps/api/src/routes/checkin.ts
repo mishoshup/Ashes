@@ -58,7 +58,7 @@ insightRoutes.get("/", requireAuth, async (c) => {
 
 export const topicRoutes = new Hono<AppEnv>();
 
-topicRoutes.get("/:slug", requireAuth, async (c) => {
+topicRoutes.get("/:slug", async (c) => {
   const row = await topicBySlug(c.env, c.req.param("slug"));
   const topic = row ? publicTopic(row) : null;
   if (!topic) {
