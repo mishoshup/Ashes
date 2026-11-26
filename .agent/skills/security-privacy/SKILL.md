@@ -13,11 +13,13 @@ description: Cloudflare Workers security: magic-link auth, D1 sessions, Durable 
 - Token: 32 random bytes; store only SHA-256 hash; 10-minute expiry; single use.
 - Verify: atomically consume token, create user if new, create session.
 - Session: 32 random bytes; store SHA-256 hash in D1; 30-day expiry; return raw token once.
-- Bearer header only. Never in a URL, log, query cache, AsyncStorage, analytics, or error report.
-- Logout: revoke session; logout-all: revoke every session for the user.
+- Mobile: Bearer. Web: `HttpOnly`, `SameSite=Lax`, `Secure` in production cookie. Never in a URL, log, query cache, AsyncStorage, analytics, or error report.
+- Logout: soft-revoke the session and clear the cookie. Revoke-all: soft-revoke every session, optionally keeping the current one.
+- Rotation on password change; rotated-token reuse revokes the replacement chain.
+- Device list is live: id, timestamps, user agent, current flag, no token hashes.
 - Password step-up: only from a verified magic-link session. Argon2id via `@phi-ag/argon2` WASM SIMD (the sillyusachi reference) with m=19456 KiB, t=2, p=1; HMAC-SHA256 pepper (required, 32+ chars, fail closed if missing); stored as a PHC string. No open password registration.
 - Changing an existing password requires the current password; revoke other sessions on change.
-- Add email verification, device list, and account deletion before public launch.
+- Add email verification and account deletion before public launch.
 
 ## Authorization
 

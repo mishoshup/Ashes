@@ -1,5 +1,6 @@
 import {
   idSchema,
+  meResponseSchema,
   revokeAllSessionsInputSchema,
   revokeAllSessionsResponseSchema,
   sessionsResponseSchema,
@@ -22,7 +23,7 @@ function noStore(c: { header: (name: string, value: string) => void }): void {
 meRoutes.get("/", requireAuth, (c) => {
   noStore(c);
   const user = c.get("user");
-  return c.json({ user, email: user.email });
+  return c.json(meResponseSchema.parse({ user, email: user.email }));
 });
 
 meRoutes.get("/sessions", requireAuth, async (c) => {
