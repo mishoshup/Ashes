@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { filterDiff } from "./review/diff";
+import { fail } from "./review/gate";
 import { parseReviewJson } from "./review/parse";
 import { buildSystemPrompt, buildUserPrompt, loadRules } from "./review/prompt";
 import { reviewResultSchema } from "./review/schema";
@@ -206,14 +207,6 @@ async function postComment(env: Env, body: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`GitHub comment write failed: ${response.status}`);
   }
-}
-
-function fail(message: string): void {
-  console.error(message);
-  if (process.env.GITHUB_ACTIONS === "true") {
-    console.error(`::error::${message.replaceAll("\n", " ")}`);
-  }
-  process.exitCode = 1;
 }
 
 async function main(): Promise<void> {
