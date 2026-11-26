@@ -22,7 +22,7 @@ other Markdown files.
 | Tests | **Vitest Workers pool** (Workers runtime + D1/R2/DO) for API; Bun for pure packages; RNTL/Jest for components; Playwright for web/tablet. |
 | CI | GitHub Actions + **Wrangler** preview/prod deploys + **local EAS** builds. 6–8 workflows, not 71. |
 | Web | Expo web static export on **Cloudflare Workers Assets / Pages** |
-| Auth | **Magic-link email OTP + D1 sessions**. No passwords in v1; Argon2 is not available on Workers without WASM and CPU risk. |
+| Auth | **Magic-link email OTP + D1 sessions**, with an optional **Argon2id password step-up** via `@noble/hashes` (pure JS on Workers). No open password registration; set a password from a verified magic-link session. Workers Paid is required for the CPU cost. |
 | Docs | No design docs. No docs tree. Skills are the operational documentation. Product help is added only when users need it. |
 
 ## Repo map

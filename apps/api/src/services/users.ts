@@ -1,5 +1,6 @@
 import type { UserSummary } from "@ashes/contracts";
 import type { Env } from "../types";
+import { burnPassword, verifyPassword } from "./password";
 import {
   magicLinkExpiry,
   newId,
@@ -18,6 +19,8 @@ type UserRow = {
   accent: string;
   created_at: string;
   email_verified_at: string | null;
+  password_hash: string | null;
+  password_updated_at: string | null;
   updated_at: string;
 };
 
@@ -201,4 +204,50 @@ export async function findSessionUser(
 export async function revokeSession(env: Env, token: string): Promise<void> {
   const tokenHash = await sessionTokenHash(env, token);
   await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
+}
+
+export async function findPasswordHash(env: Env, userId: string): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT password_hash FROM users WHERE id = ?")
+    .bind(userId)
+    .first<{ password_hash: string | null }>();
+  return row?.password_hash ?? null;
+}
+
+export async function setPasswordAndRevokeOthers(
+  env: Env,
+  userId: string,
+  passwordHash: string,
+  currentToken: string,
+  now: Date,
+): Promise<void> {
+  const currentHash = await sessionTokenHash(env, currentToken);
+  const nowIso = now.toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE users SET password_hash = ?, password_updated_at = ?, updated_at = ? WHERE id = ?",
+    ).bind(passwordHash, nowIso, nowIso, userId),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").bind(
+      userId,
+      currentHash,
+    ),
+  ]);
+}
+
+export async function loginWithPassword(
+  env: Env,
+  email: string,
+  password: string,
+  now: Date,
+): Promise<{ user: AuthUser; token: string } | null> {
+  const row = await findUserByEmail(env, email);
+  if (!row?.password_hash) {
+    await burnPassword(password);
+    return null;
+  }
+  const valid = await verifyPassword(password, row.password_hash);
+  if (!valid) {
+    return null;
+  }
+  const token = await createSession(env, row.id, now);
+  return { user: toAuthUser(row), token };
 }

@@ -150,16 +150,181 @@ describe("magic link auth", () => {
     expect(row?.count).toBe(1);
   });
 
+  it("sets a password from a magic-link session and logs in with it", async () => {
+    // Given a verified magic-link session
+    const email = "password@example.com";
+    const magic = await magicLink(email);
+    const verified = await post("/api/auth/verify", { token: magic }, undefined, "pw-ip");
+    const session = authSessionResponseSchema.parse(await verified.json());
+    const password = "correct horse battery staple";
+
+    // When the user sets a password and logs out
+    const set = await post("/api/auth/password", { password }, session.token, "pw-ip");
+    expect(set.status).toBe(204);
+    const logout = await post("/api/auth/logout", {}, session.token, "pw-ip");
+    expect(logout.status).toBe(204);
+
+    // Then password login returns a session and /api/me works
+    const login = await post("/api/auth/login", { email, password }, undefined, "pw-login-ip");
+    expect(login.status).toBe(200);
+    const loginSession = authSessionResponseSchema.parse(await login.json());
+    expect(loginSession.isNewUser).toBe(false);
+    const me = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${loginSession.token}` },
+    });
+    expect(me.status).toBe(200);
+    expect(me.headers.get("content-type")).toContain("application/json");
+    expect(await me.text()).not.toContain("argon2id");
+
+    // And the stored hash is Argon2id with the expected cost
+    const row = await env.DB.prepare("SELECT password_hash FROM users WHERE email = ?")
+      .bind(email)
+      .first<{ password_hash: string | null }>();
+    expect(row?.password_hash).toMatch(
+      /^\$argon2id\$v=19\$m=19456,t=2,p=1\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/u,
+    );
+  });
+
+  it("rejects wrong, missing, and no-password logins", async () => {
+    // Given an account with a password
+    const email = "wrong-password@example.com";
+    const magic = await magicLink(email);
+    const verified = await post("/api/auth/verify", { token: magic }, undefined, "wrong-ip");
+    const session = authSessionResponseSchema.parse(await verified.json());
+    const password = "another long password";
+    await post("/api/auth/password", { password }, session.token, "wrong-ip");
+
+    // When login is attempted with bad credentials, an unknown email, or no password
+    const wrong = await post(
+      "/api/auth/login",
+      { email, password: "not the password" },
+      undefined,
+      "wrong-login-ip",
+    );
+    const unknown = await post(
+      "/api/auth/login",
+      { email: "nobody@example.com", password: "not the password" },
+      undefined,
+      "unknown-ip",
+    );
+    const noPasswordMagic = await magicLink("no-password@example.com");
+    const noPassword = await post(
+      "/api/auth/login",
+      { email: "no-password@example.com", password: "some long password" },
+      undefined,
+      "no-password-ip",
+    );
+    expect(noPasswordMagic.length).toBeGreaterThan(20);
+
+    // Then all are generic 401s
+    expect(wrong.status).toBe(401);
+    expect(unknown.status).toBe(401);
+    expect(noPassword.status).toBe(401);
+  });
+
+  it("requires the current password to change an existing password", async () => {
+    // Given an account with a password
+    const email = "change-password@example.com";
+    const magic = await magicLink(email);
+    const verified = await post("/api/auth/verify", { token: magic }, undefined, "change-ip");
+    const session = authSessionResponseSchema.parse(await verified.json());
+    const oldPassword = "old password is long";
+    const newPassword = "new password is longer";
+    await post("/api/auth/password", { password: oldPassword }, session.token, "change-ip");
+
+    // When changing without / with the wrong current password
+    const missing = await post(
+      "/api/auth/password",
+      { password: newPassword },
+      session.token,
+      "change-ip",
+    );
+    const wrong = await post(
+      "/api/auth/password",
+      { password: newPassword, currentPassword: "not the old one" },
+      session.token,
+      "change-ip",
+    );
+    // Then both are rejected
+    expect(missing.status).toBe(400);
+    expect(wrong.status).toBe(400);
+
+    // Given a second active session for the same account
+    const secondMagic = await magicLink(email);
+    const secondVerified = await post(
+      "/api/auth/verify",
+      { token: secondMagic },
+      undefined,
+      "change-second-ip",
+    );
+    const secondSession = authSessionResponseSchema.parse(await secondVerified.json());
+
+    // When changing with the correct current password
+    const changed = await post(
+      "/api/auth/password",
+      { password: newPassword, currentPassword: oldPassword },
+      session.token,
+      "change-ip",
+    );
+
+    // Then it succeeds, the current session survives, and other sessions are revoked
+    expect(changed.status).toBe(204);
+    const currentMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    const secondMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${secondSession.token}` },
+    });
+    expect(currentMe.status).toBe(200);
+    expect(secondMe.status).toBe(401);
+    const oldLogin = await post(
+      "/api/auth/login",
+      { email, password: oldPassword },
+      undefined,
+      "change-login-ip",
+    );
+    const newLogin = await post(
+      "/api/auth/login",
+      { email, password: newPassword },
+      undefined,
+      "change-login-ip",
+    );
+    expect(oldLogin.status).toBe(401);
+    expect(newLogin.status).toBe(200);
+  });
+
+  it("rejects a password shorter than the policy", async () => {
+    // Given a magic-link session
+    const magic = await magicLink("short-password@example.com");
+    const verified = await post("/api/auth/verify", { token: magic }, undefined, "short-ip");
+    const session = authSessionResponseSchema.parse(await verified.json());
+
+    // When a short password is set
+    const response = await post(
+      "/api/auth/password",
+      { password: "short" },
+      session.token,
+      "short-ip",
+    );
+
+    // Then it is rejected
+    expect(response.status).toBe(400);
+  });
+
   it("rate limits magic links per IP", async () => {
     // Given ten magic-link requests from one IP
-    for (let index = 0; index < 10; index += 1) {
-      const allowed = await post(
-        "/api/auth/magic-link",
-        { email: `rate-${index}@example.com` },
-        undefined,
-        "203.0.113.10",
-      );
-      expect(allowed.status).toBe(200);
+    const allowed = await Promise.all(
+      Array.from({ length: 10 }, (_, index) =>
+        post(
+          "/api/auth/magic-link",
+          { email: `rate-${index}@example.com` },
+          undefined,
+          "203.0.113.10",
+        ),
+      ),
+    );
+    for (const response of allowed) {
+      expect(response.status).toBe(200);
     }
 
     // When an eleventh request arrives

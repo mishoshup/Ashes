@@ -16,6 +16,7 @@
   "dependencies": {
     "@ashes/contracts": "workspace:*",
     "@ashes/core": "workspace:*",
+    "@noble/hashes": "2.4.0",
     "drizzle-orm": "0.45.4",
     "hono": "4.13.22",
     "zod": "4.6.7"

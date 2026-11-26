@@ -34,3 +34,20 @@ export type MeResponse = z.infer<typeof meResponseSchema>;
 
 export const sessionTokenSchema = z.string().min(1).max(256);
 export const userIdSchema = idSchema;
+
+export const passwordSchema = z
+  .string()
+  .min(12, "Use at least 12 characters")
+  .max(200, "Password is too long");
+
+export const setPasswordInputSchema = z.object({
+  password: passwordSchema,
+  currentPassword: z.string().min(1).max(200).optional(),
+});
+export type SetPasswordInput = z.infer<typeof setPasswordInputSchema>;
+
+export const passwordLoginInputSchema = z.object({
+  email: z.email(),
+  password: z.string().min(1).max(200),
+});
+export type PasswordLoginInput = z.infer<typeof passwordLoginInputSchema>;
