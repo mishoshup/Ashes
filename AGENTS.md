@@ -58,7 +58,8 @@ bun run test:mobile     # RNTL
 bun run e2e             # seeded API flow
 bun run build           # Worker dry-run bundle + Expo export
 bun run verify          # all deterministic gates; CI parity
-bun run review          # verify + read-only agent review
+bun run review          # verify + Roast review
+bun run review:install  # install pinned Roast v1.5.1
 bun run db:generate     # drizzle-kit generate
 bun run db:migrate:local  # wrangler d1 migrations apply --local
 bun run db:migrate:remote # wrangler d1 migrations apply --remote
@@ -152,7 +153,7 @@ this; "it works" is not a justification.
 - `knip`, `cspell`, `shellcheck`, secret scan, dependency audit.
 - Bundle-size budget, route-count budget, Expo export for iOS + Android.
 - Web/tablet Playwright smoke; screenshots for the 5 tabs, channel, article, composer, errors.
-- Agent review: deterministic gates first, then read-only reviewer; verified critical/high findings block.
+- Roast review: deterministic gates first, then pinned Roast v1.5.1. Finder and verifier both use `deepseek/deepseek-v4.1-flash`; additive project rules live in `scripts/review/roast/ashes-rules.md`; MEDIUM and above block.
 - A skipped reviewer is a failed gate. Missing config, oversized diff, empty diff, or API failure fails the job; never merge on a skipped review.
 - `wrangler deploy --dry-run` for the API; D1 migration check; DO binding check.
 - Nightly: full lint, full tests, dependency/license audit, EAS Android + iOS simulator builds.
@@ -164,7 +165,7 @@ this; "it works" is not a justification.
 3. Make the smallest change. Add/adjust tests in the same change.
 4. Run `bun run format && bun run lint:changed && bun run typecheck && bun run test`.
 5. Run `bun run arch`.
-6. Stage everything. Run the code reviewer on `git diff --cached $(git merge-base origin/main HEAD)`.
+6. Stage everything. Run `bun scripts/roast-review.ts` (or `bun run review`). Roast reads the rules from the base commit, uses both Flash roles, and posts a report.
 7. Fix every verified finding or document why the exception applies. Re-run from 4.
 8. Run `bun run verify` and capture output.
 9. Only then open a PR. No completion claim without command output.
@@ -182,7 +183,7 @@ Same failure twice → stop, report the exact command/output, and ask. Never wea
 | `testing` | Bun/RNTL/Playwright, fixtures, coverage |
 | `security-privacy` | auth, tokens, authz, PII, uploads, rate limits |
 | `ci-release` | gates, workflows, local EAS, signing, artifacts |
-| `review-loop` | diff review, rule IDs, evidence, severity, human gate |
+| `review-loop` | Roast review, additive rules, evidence, severity, human gate |
 
 ## Do not
 

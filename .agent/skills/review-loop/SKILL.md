@@ -1,6 +1,6 @@
 ---
 name: review-loop
-description: Deterministic gates, read-only agent review, rule IDs, evidence, severity, and the fix loop for Ashes.
+description: Roast review, additive project rules, deterministic gates, evidence, severity, and the fix loop for Ashes.
 ---
 
 # Review loop
@@ -9,75 +9,58 @@ description: Deterministic gates, read-only agent review, rule IDs, evidence, se
 
 1. Deterministic gates: `bun run verify`.
 2. Architecture gate: `bun run arch`.
-3. Read-only agent review on the staged diff.
+3. Roast review: `bun scripts/roast-review.ts` (or `bun run review`).
 4. Human review and merge.
 
-The agent never replaces a failing gate. If `verify` fails, fix that first; do not spend an
-LLM call reviewing code that does not compile.
+If `verify` fails, fix that first; do not spend an LLM call reviewing code that does not compile.
+
+## Roast
+
+- Pinned version: `v1.5.1`. Install with `bun run review:install` (or `go install github.com/bluesky-social/roast/cmd/roast@v1.5.1`).
+- Finder and verifier both use `deepseek/deepseek-v4.1-flash`.
+- The finder core and verifier core are fetched from the pinned Roast tag and hash-checked.
+- Project rules are **additive**, not a replacement: `scripts/review/roast/ashes-rules.md`.
+- Rules are read from the base commit, so a PR cannot weaken the rules that review it.
+- The verifier keeps Roast's default procedure: judge only the claim, require grounding, never raise severity.
+- MEDIUM and above fail the review. LOW is advisory.
+
+## Rules and evidence
+
+- Every finding cites a rule ID from `ashes-rules.md` and exact code evidence.
+- Roast requires a verbatim `code_quote` and a concrete `fixed_code`; findings without both are dropped.
+- Deterministic gates already cover formatting, lint, types, imports, route purity, file limits, and build. Do not report those.
+- Style and copy are binding rules, not taste. Report only a rule-backed style violation; aggregate repeated occurrences.
+- “I would have done it differently” is not a finding.
+
+## Severity policy
+
+- **Critical**: auth bypass, secret/PII leak, data loss, destructive migration, broken access control.
+- **High**: private content leak, shame/blame in a slip or return flow, public-by-default reflection, duplicate write/idempotency bug, broken guard.
+- **Medium**: missing test for changed behavior, effect misuse, style/design-system break that harms comprehension or theming, diagnosis or advice copy.
+- **Low**: naming, comments, copy consistency, minor style.
+
+Critical/high/medium block. Low is advisory. Never raise severity to force a block.
 
 ## Diff
 
 - Stage everything: `git add -A`.
-- Review `git diff --cached $(git merge-base origin/main HEAD)`.
-- Review **changed lines only**. Do not comment on unchanged code.
-- For files over 5,000 lines, grep the changed regions; do not read the whole file.
-- Exclude lockfiles, binaries, generated files, and assets from the diff.
+- Local review reads the branch diff against `origin/main`.
+- CI review checks out the base commit and Roast fetches the PR head into a temporary worktree. It reads code; it never executes PR code.
+- Review changed lines only. Roast handles diff windows and excludes.
 
-## Rules and evidence
+## Output
 
-- Every finding cites one rule ID (e.g. `STATE-5`, `API-4`, `ROUTE-2`).
-- Every finding includes path, changed line, and an **evidence substring that exists in the diff**.
-- Findings without evidence are dropped.
-- One violation per finding. Do not bundle.
-- Severity: critical / high (block), medium (fix or justify), low (advisory).
-- “I would have done it differently” is not a finding. Cite a rule or stay silent.
-
-## Output contract
-
-```json
-{
-  "violations": [
-    {
-      "ruleId": "STATE-5",
-      "path": "apps/mobile/src/features/post/actions.ts",
-      "line": 42,
-      "evidence": "queryClient.setQueryData",
-      "why": "Optimistic update has no rollback on error.",
-      "fix": "Snapshot the previous entity in onMutate and restore it in onError."
-    }
-  ]
-}
-```
-
-- No prose outside JSON from the reviewer.
-- No posting from the reviewer. The orchestrator validates and posts.
-- The reviewer has no edit/write/web tools.
-
-## Severity policy
-
-- **Critical**: auth bypass, secret/PII leak, data loss, destructive migration, broken access control, payment.
-- **High**: missing rollback, duplicate/idempotency bug, private content leak, broken route guard, unchecked API response, effect used for derived state or event reactions.
-- **Medium**: missing test for a changed behavior, selector returning a whole collection, raw SQL in a route, inline style, an effect without cleanup/justification.
-- **Low**: naming, copy, minor performance, file organization.
-
-Critical/high block. Medium requires a fix or a written exception with an issue link. Low is advisory.
+- CI posts one marker-controlled PR comment (`<!-- ashes-roast-review -->`).
+- Local prints the report.
+- A missing key, missing Go binary, failed prompt hash, failed model call, or failed comment post fails loudly. A skipped review is never a pass.
+- A human approves pushes and merges.
 
 ## The loop
 
 ```text
-verify → review → fix → verify → review
+verify → roast → fix → verify → roast
 ```
 
 - Max 3 iterations. If the same failure repeats twice, stop and report the exact output.
 - Never weaken a rule or test to pass.
-- A rule exception: comment with reason + issue link + expiry.
 - No completion claim without output.
-
-## Local reviewer agents
-
-- `code-reviewer` — rules, diff only, JSON.
-- `architecture-reviewer` — boundaries, state ownership, data flow, migrations.
-- `security-reviewer` — authz, secrets, uploads, PII, prompt injection.
-- `test-reviewer` — missing tests, weak assertions, flaky patterns.
-
-All are read-only. A human ships.

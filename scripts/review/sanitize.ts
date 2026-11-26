@@ -1,11 +1,6 @@
-export function sanitizeInline(value: string, maxLength = 600): string {
-  return value
-    .replace(/\s+/gu, " ")
-    .replaceAll("@", "@\u200b")
-    .replaceAll("`", "'")
-    .replaceAll("|", "\\|")
+export function sanitizeComment(body: string): string {
+  return body
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .trim()
-    .slice(0, maxLength);
+    .replace(/@(?=[A-Za-z0-9_-])/gu, "@\u200b");
 }
