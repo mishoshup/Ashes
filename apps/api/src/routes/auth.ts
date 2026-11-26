@@ -9,6 +9,7 @@ import {
   webAuthSessionResponseSchema,
 } from "@ashes/contracts";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { bearerToken, requireAuth } from "../middleware/auth";
 import { sendMagicLink, verifyTurnstile } from "../services/email";
@@ -44,6 +45,14 @@ function badRequest(message: string): never {
 function noStore(c: { header: (name: string, value: string) => void }): void {
   c.header("Cache-Control", "no-store");
   c.header("Pragma", "no-cache");
+}
+
+function requireWebOrigin(c: Context<AppEnv>): void {
+  const origin = c.req.header("Origin");
+  const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
+  if (!origin || !allowed.includes(origin)) {
+    throw new HTTPException(403, { message: "Cross-origin request blocked" });
+  }
 }
 
 function requirePasswordPepper(env: Env): string {
@@ -112,6 +121,9 @@ authRoutes.post("/verify", async (c) => {
     c.header("Retry-After", "60");
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
   }
+  if (parsed.data.client === "web") {
+    requireWebOrigin(c);
+  }
   const now = new Date();
   const email = await peekLoginToken(c.env, parsed.data.token, now);
   if (!email) {
@@ -157,6 +169,9 @@ authRoutes.post("/login", async (c) => {
   if (!(await checkRateLimit(c.env, `login:email:${email}`, 5, 60))) {
     c.header("Retry-After", "60");
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
+  }
+  if (parsed.data.client === "web") {
+    requireWebOrigin(c);
   }
   const pepper = requirePasswordPepper(c.env);
   const result = await loginWithPassword(

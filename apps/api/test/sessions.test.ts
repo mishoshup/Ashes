@@ -41,7 +41,14 @@ async function mobileSession(email: string): Promise<string> {
 
 async function webCookie(email: string): Promise<string> {
   const token = await magicLink(email);
-  const response = await post("/api/auth/verify", { token, client: "web" });
+  const response = await SELF.fetch("https://example.com/api/auth/verify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: "http://localhost:8081",
+    },
+    body: JSON.stringify({ token, client: "web" }),
+  });
   expect(response.status).toBe(200);
   webAuthSessionResponseSchema.parse(await response.json());
   const setCookie = response.headers.get("set-cookie") ?? "";
@@ -65,7 +72,19 @@ describe("sessions", () => {
   it("sets an HttpOnly web cookie and blocks cookie writes without an allowed origin", async () => {
     // Given a verified web session
     const token = await magicLink("cookie@example.com");
-    const response = await post("/api/auth/verify", { token, client: "web" });
+
+    // A web verify without an allowed origin cannot set a cookie
+    const blockedVerify = await post("/api/auth/verify", { token, client: "web" });
+    expect(blockedVerify.status).toBe(403);
+
+    const response = await SELF.fetch("https://example.com/api/auth/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:8081",
+      },
+      body: JSON.stringify({ token, client: "web" }),
+    });
     expect(response.status).toBe(200);
 
     // Then the cookie is HttpOnly, SameSite=Lax, and the body has no token
