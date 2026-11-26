@@ -6,6 +6,7 @@ declare global {
     interface Env {
       TEST_MIGRATIONS: D1Migration[];
       SESSION_PEPPER?: string;
+      PASSWORD_PEPPER?: string;
     }
   }
 }

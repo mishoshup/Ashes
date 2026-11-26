@@ -21,8 +21,8 @@ async function post(
   });
 }
 
-async function magicLink(email: string): Promise<string> {
-  const response = await post("/api/auth/magic-link", { email });
+async function magicLink(email: string, ip = `test-${crypto.randomUUID()}`): Promise<string> {
+  const response = await post("/api/auth/magic-link", { email }, undefined, ip);
   expect(response.status).toBe(200);
   const body = magicLinkResponseSchema.parse(await response.json());
   expect(typeof body.devToken).toBe("string");
@@ -309,6 +309,46 @@ describe("magic link auth", () => {
 
     // Then it is rejected
     expect(response.status).toBe(400);
+  });
+
+  it("fails closed when the password pepper is missing or short", async () => {
+    // Given a verified session and a missing/short pepper
+    const magic = await magicLink("pepper@example.com");
+    const verified = await post("/api/auth/verify", { token: magic }, undefined, "pepper-ip");
+    const session = authSessionResponseSchema.parse(await verified.json());
+    const original = env.PASSWORD_PEPPER;
+
+    try {
+      env.PASSWORD_PEPPER = "";
+      // When login and password set are called
+      const login = await post(
+        "/api/auth/login",
+        { email: "pepper@example.com", password: "some long password" },
+        undefined,
+        "pepper-login-ip",
+      );
+      const set = await post(
+        "/api/auth/password",
+        { password: "some long password" },
+        session.token,
+        "pepper-ip",
+      );
+
+      // Then both fail closed
+      expect(login.status).toBe(503);
+      expect(set.status).toBe(503);
+
+      env.PASSWORD_PEPPER = "short";
+      const short = await post(
+        "/api/auth/login",
+        { email: "pepper@example.com", password: "some long password" },
+        undefined,
+        "pepper-short-ip",
+      );
+      expect(short.status).toBe(503);
+    } finally {
+      env.PASSWORD_PEPPER = original;
+    }
   });
 
   it("rate limits magic links per IP", async () => {
