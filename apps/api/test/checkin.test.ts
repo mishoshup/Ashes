@@ -37,6 +37,16 @@ async function newSession(email: string): Promise<string> {
   return authSessionResponseSchema.parse(await verify.json()).token;
 }
 
+async function userId(email: string): Promise<string> {
+  const row = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+    .bind(email)
+    .first<{ id: string }>();
+  if (!row) {
+    throw new Error("missing test user");
+  }
+  return row.id;
+}
+
 async function checkIn(
   token: string,
   input: { promptId: string; answer: string },
@@ -253,6 +263,106 @@ describe("situation prompts", () => {
     const response = await SELF.fetch("https://example.com/api/topics/identity");
 
     // Then the private channel metadata is not returned
+    expect(response.status).toBe(200);
+    expect(psychTopicSchema.parse(await response.json()).channel).toBeNull();
+  });
+
+  it("returns conflict while an idempotency claim is in progress", async () => {
+    // Given a fresh, incomplete claim for the same user and key
+    const token = await newSession("in-progress@example.com");
+    const id = await userId("in-progress@example.com");
+    const key = crypto.randomUUID();
+    const now = new Date();
+    await env.DB.prepare(
+      `INSERT INTO idempotency_keys
+       (user_id, key, request_hash, response_json, created_at, expires_at)
+       VALUES (?, ?, ?, '', ?, ?)`,
+    )
+      .bind(
+        id,
+        key,
+        "pending",
+        now.toISOString(),
+        new Date(now.getTime() + 3_600_000).toISOString(),
+      )
+      .run();
+
+    // When the same key is retried
+    const response = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "stress" },
+      token,
+      "local",
+      key,
+    );
+
+    // Then it does not run the write twice
+    expect(response.status).toBe(409);
+  });
+
+  it("takes over a stale idempotency claim", async () => {
+    // Given a claim that has been abandoned for longer than the stale window
+    const token = await newSession("stale@example.com");
+    const id = await userId("stale@example.com");
+    const key = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO idempotency_keys
+       (user_id, key, request_hash, response_json, created_at, expires_at)
+       VALUES (?, ?, ?, '', ?, ?)`,
+    )
+      .bind(
+        id,
+        key,
+        "pending",
+        "2020-01-01T00:00:00.000Z",
+        new Date(Date.now() + 3_600_000).toISOString(),
+      )
+      .run();
+
+    // When the same key is retried
+    const response = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "stress" },
+      token,
+      "local",
+      key,
+    );
+
+    // Then the claim is taken over and the write completes
+    expect(response.status).toBe(200);
+    const body = checkInResponseSchema.parse(await response.json());
+    expect(body.pattern?.count).toBe(1);
+  });
+
+  it("does not expose a public channel inside a private community", async () => {
+    // Given a public channel whose parent community is private
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO communities
+         (id, slug, name, description, monogram, accent, visibility, created_at, updated_at)
+         VALUES ('com_private_parent', 'private-parent', 'Private Parent', 'Private community.',
+         'PP', '#000000', 'private', '2026-11-01T09:00:00.000Z', '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO channels
+         (id, community_id, slug, name, description, kind, visibility, created_at)
+         VALUES ('chn_public_child', 'com_private_parent', 'public-child', 'public-child',
+         'Public channel in a private community.', 'chat', 'public',
+         '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO psych_topics
+         (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at)
+         VALUES ('reward', 'reward', 'What smoking gives you', 'Reward.', 'A short explanation.',
+         'What does it give you?', 'Maybe the cigarette is a reward.', 'chn_public_child',
+         '2026-11-01T09:00:00.000Z')`,
+      ),
+    ]);
+
+    // When the public topic is requested
+    const response = await SELF.fetch("https://example.com/api/topics/reward");
+
+    // Then the private community's channel metadata is not returned
     expect(response.status).toBe(200);
     expect(psychTopicSchema.parse(await response.json()).channel).toBeNull();
   });

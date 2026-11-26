@@ -32,7 +32,7 @@ export async function topicByTrigger(env: Env, trigger: Trigger): Promise<CheckI
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      WHERE pt.trigger = ?`,
   )
     .bind(trigger)
@@ -45,7 +45,7 @@ export async function topicBySlug(env: Env, slug: string): Promise<CheckInTopicR
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      WHERE pt.slug = ?`,
   )
     .bind(slug)
@@ -66,7 +66,7 @@ export async function listTopics(env: Env) {
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      ORDER BY CASE pt.trigger
        WHEN 'stress' THEN 0 WHEN 'social' THEN 1 WHEN 'boredom' THEN 2
        WHEN 'routine' THEN 3 WHEN 'emotional' THEN 4 WHEN 'reward' THEN 5
