@@ -425,9 +425,13 @@ export const checkIns = sqliteTable(
     feeling: text("feeling"),
     context: text("context"),
     note: text("note"),
+    clientId: text("client_id"),
     createdAt: text("created_at").notNull(),
   },
-  (table) => [index("check_ins_user_created_idx").on(table.userId, table.createdAt)],
+  (table) => [
+    index("check_ins_user_created_idx").on(table.userId, table.createdAt),
+    uniqueIndex("check_ins_user_client_idx").on(table.userId, table.clientId),
+  ],
 );
 
 export const checkInTags = sqliteTable(

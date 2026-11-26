@@ -162,6 +162,31 @@ describe("check-in idempotency", () => {
     expect(retry.status).toBe(200);
   });
 
+  it("does not double-write when the idempotency claim is gone", async () => {
+    // Given a check-in that already committed
+    const token = await newSession("dedupe-write@example.com");
+    const id = await userId("dedupe-write@example.com");
+    const key = crypto.randomUUID();
+    const input = { promptId: "trigger", answer: "stress" };
+    const first = await post("/api/check-in", input, token, "local", key);
+    expect(first.status).toBe(200);
+
+    // When the idempotency claim is removed and the same key retries
+    await env.DB.prepare("DELETE FROM idempotency_keys WHERE user_id = ? AND key = ?")
+      .bind(id, key)
+      .run();
+    const second = await post("/api/check-in", input, token, "local", key);
+
+    // Then the deterministic check-in ID prevents a second row
+    expect(second.status).toBe(200);
+    const body = checkInResponseSchema.parse(await second.json());
+    expect(body.pattern?.count).toBe(1);
+    const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM check_ins WHERE user_id = ?")
+      .bind(id)
+      .first<{ count: number }>();
+    expect(count?.count).toBe(1);
+  });
+
   it("takes over a stale idempotency claim", async () => {
     // Given a claim that has been abandoned for longer than the stale window
     const token = await newSession("stale@example.com");

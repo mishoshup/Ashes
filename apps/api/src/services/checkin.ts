@@ -1,6 +1,7 @@
 import { triggerSchema, type CheckInInput, type PromptId, type Trigger } from "@ashes/contracts";
 import type { Env } from "../types";
 import { PATTERN_THRESHOLD, PROMPTS, promptFor, promptTags } from "../lib/prompts";
+import { hashRequest } from "./idempotency";
 
 export type CheckInTopicRow = {
   slug: string;
@@ -146,13 +147,22 @@ export async function countTag(env: Env, userId: string, tag: Trigger): Promise<
   return row?.count ?? 0;
 }
 
-export async function recordCheckIn(env: Env, userId: string, input: CheckInInput, now: Date) {
+export async function recordCheckIn(
+  env: Env,
+  userId: string,
+  input: CheckInInput,
+  now: Date,
+  clientId?: string,
+) {
   const tags = [...new Set(promptTags(input.promptId, input.answer))];
-  const id = `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
+  const id = clientId
+    ? `chk_${(await hashRequest({ userId, clientId })).slice(0, 22)}`
+    : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
   const statements = [
     env.DB.prepare(
-      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT DO NOTHING`,
     ).bind(
       id,
       userId,
@@ -161,10 +171,14 @@ export async function recordCheckIn(env: Env, userId: string, input: CheckInInpu
       input.feeling ?? null,
       input.context ?? null,
       input.note ?? null,
+      clientId ?? null,
       now.toISOString(),
     ),
     ...tags.map((tag) =>
-      env.DB.prepare("INSERT INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(id, tag),
+      env.DB.prepare("INSERT OR IGNORE INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(
+        id,
+        tag,
+      ),
     ),
   ];
   await env.DB.batch(statements);

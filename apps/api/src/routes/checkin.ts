@@ -60,7 +60,13 @@ checkInRoutes.post("/", requireAuth, async (c) => {
     async () =>
       checkInResponseSchema.parse({
         ok: true,
-        pattern: await recordCheckIn(c.env, user.id, parsed.data, now),
+        pattern: await recordCheckIn(
+          c.env,
+          user.id,
+          parsed.data,
+          now,
+          c.req.header("Idempotency-Key"),
+        ),
       }),
   );
   return c.json(response);
