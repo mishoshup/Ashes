@@ -181,6 +181,43 @@ describe("check-in idempotency", () => {
     expect(count?.count).toBe(2);
   });
 
+  it("rejects a changed answer after the idempotency claim is gone", async () => {
+    // Given a stored check-in
+    const token = await newSession("changed-answer@example.com");
+    const id = await userId("changed-answer@example.com");
+    const key = crypto.randomUUID();
+    await post("/api/check-in", { promptId: "trigger", answer: "stress" }, token, "local", key);
+
+    // When the claim is gone and the same key carries a different answer
+    await env.DB.prepare("DELETE FROM idempotency_keys WHERE user_id = ? AND key = ?")
+      .bind(id, key)
+      .run();
+    const response = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "social" },
+      token,
+      "local",
+      key,
+    );
+
+    // Then the stored check-in is not mutated and the change is rejected
+    expect(response.status).toBe(400);
+    const checkIns = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM check_ins WHERE user_id = ?",
+    )
+      .bind(id)
+      .first<{ count: number }>();
+    expect(checkIns?.count).toBe(1);
+    const social = await env.DB.prepare(
+      `SELECT COUNT(*) AS count FROM check_in_tags t
+       JOIN check_ins c ON c.id = t.check_in_id
+       WHERE c.user_id = ? AND t.tag = 'social'`,
+    )
+      .bind(id)
+      .first<{ count: number }>();
+    expect(social?.count).toBe(0);
+  });
+
   it("does not double-write when the idempotency claim is gone", async () => {
     // Given a check-in that already committed
     const token = await newSession("dedupe-write@example.com");

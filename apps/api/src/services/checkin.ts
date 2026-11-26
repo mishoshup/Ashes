@@ -1,4 +1,5 @@
 import { triggerSchema, type CheckInInput, type PromptId, type Trigger } from "@ashes/contracts";
+import { HTTPException } from "hono/http-exception";
 import type { Env } from "../types";
 import { PATTERN_THRESHOLD, PROMPTS, promptFor, promptTags } from "../lib/prompts";
 import { hashRequest } from "./idempotency";
@@ -159,12 +160,12 @@ export async function recordCheckIn(
   const id = normalizedClientId
     ? `chk_${(await hashRequest({ userId, clientId: normalizedClientId })).slice(0, 22)}`
     : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
-  const statements = [
-    env.DB.prepare(
-      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT DO NOTHING`,
-    ).bind(
+  const inserted = await env.DB.prepare(
+    `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT DO NOTHING`,
+  )
+    .bind(
       id,
       userId,
       input.promptId,
@@ -174,15 +175,45 @@ export async function recordCheckIn(
       input.note ?? null,
       normalizedClientId ?? null,
       now.toISOString(),
-    ),
-    ...tags.map((tag) =>
-      env.DB.prepare("INSERT OR IGNORE INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(
-        id,
-        tag,
+    )
+    .run();
+
+  if (inserted.meta.changes === 0) {
+    const existing = await env.DB.prepare(
+      `SELECT prompt_id, answer, feeling, context, note FROM check_ins WHERE id = ?`,
+    )
+      .bind(id)
+      .first<{
+        prompt_id: string;
+        answer: string;
+        feeling: string | null;
+        context: string | null;
+        note: string | null;
+      }>();
+    if (!existing) {
+      throw new Error("Check-in conflict without a stored row");
+    }
+    const same =
+      existing.prompt_id === input.promptId &&
+      existing.answer === input.answer &&
+      (existing.feeling ?? null) === (input.feeling ?? null) &&
+      (existing.context ?? null) === (input.context ?? null) &&
+      (existing.note ?? null) === (input.note ?? null);
+    if (!same) {
+      throw new HTTPException(400, { message: "Idempotency key reused with a different request" });
+    }
+  }
+
+  if (tags.length > 0) {
+    await env.DB.batch(
+      tags.map((tag) =>
+        env.DB.prepare("INSERT OR IGNORE INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(
+          id,
+          tag,
+        ),
       ),
-    ),
-  ];
-  await env.DB.batch(statements);
+    );
+  }
 
   if (tags.length === 0) {
     return null;
