@@ -5,6 +5,7 @@ import {
   magicLinkResponseSchema,
   patternsResponseSchema,
   psychTopicSchema,
+  psychTopicsResponseSchema,
 } from "@ashes/contracts";
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -151,6 +152,16 @@ describe("situation prompts", () => {
     // Then the psychology content is returned
     expect(response.status).toBe(200);
     expect(psychTopicSchema.parse(await response.json()).title).toContain("stressed");
+  });
+
+  it("lists sample psychology before registration", async () => {
+    // When a visitor opens the topic index without a session
+    const response = await SELF.fetch("https://example.com/api/topics");
+
+    // Then the editorial index is public
+    expect(response.status).toBe(200);
+    const body = psychTopicsResponseSchema.parse(await response.json());
+    expect(body.items.map((topic) => topic.slug).toSorted()).toEqual(["social", "stress"]);
   });
 
   it("serves a sample psychology topic before registration", async () => {

@@ -5,6 +5,7 @@ import {
   patternsResponseSchema,
   promptIdSchema,
   psychTopicSchema,
+  psychTopicsResponseSchema,
 } from "@ashes/contracts";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -14,6 +15,7 @@ import {
   answerIsValid,
   checkInPrompt,
   listPatterns,
+  listTopics,
   publicTopic,
   recordCheckIn,
   topicBySlug,
@@ -57,6 +59,10 @@ insightRoutes.get("/", requireAuth, async (c) => {
 });
 
 export const topicRoutes = new Hono<AppEnv>();
+
+topicRoutes.get("/", async (c) => {
+  return c.json(psychTopicsResponseSchema.parse({ items: await listTopics(c.env) }));
+});
 
 topicRoutes.get("/:slug", async (c) => {
   const row = await topicBySlug(c.env, c.req.param("slug"));

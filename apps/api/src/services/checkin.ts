@@ -55,6 +55,29 @@ function topicSummary(row: CheckInTopicRow) {
   };
 }
 
+export async function listTopics(env: Env) {
+  const rows = await env.DB.prepare(
+    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name
+     FROM psych_topics pt
+     LEFT JOIN channels ch ON ch.id = pt.channel_id
+     ORDER BY pt.title COLLATE NOCASE`,
+  ).all<CheckInTopicRow>();
+
+  return rows.results.flatMap((row) => {
+    const trigger = triggerSchema.safeParse(row.trigger);
+    if (!trigger.success) {
+      return [];
+    }
+    return [
+      {
+        ...topicSummary(row),
+        trigger: trigger.data,
+        channel: channelSummary(row),
+      },
+    ];
+  });
+}
+
 function channelSummary(row: CheckInTopicRow) {
   if (!row.channel_id || !row.channel_slug || !row.channel_name) {
     return null;

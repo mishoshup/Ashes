@@ -104,3 +104,17 @@ export const psychTopicSchema = z.object({
   channel: patternChannelSchema.nullable(),
 });
 export type PsychTopic = z.infer<typeof psychTopicSchema>;
+
+export const psychTopicSummarySchema = psychTopicSchema.pick({
+  slug: true,
+  title: true,
+  summary: true,
+  trigger: true,
+  channel: true,
+});
+export type PsychTopicSummary = z.infer<typeof psychTopicSummarySchema>;
+
+export const psychTopicsResponseSchema = z.object({
+  items: z.array(psychTopicSummarySchema),
+});
+export type PsychTopicsResponse = z.infer<typeof psychTopicsResponseSchema>;
