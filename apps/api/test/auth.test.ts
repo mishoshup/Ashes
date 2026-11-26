@@ -249,6 +249,16 @@ describe("magic link auth", () => {
     expect(missing.status).toBe(400);
     expect(wrong.status).toBe(400);
 
+    // Given a second active session for the same account
+    const secondMagic = await magicLink(email);
+    const secondVerified = await post(
+      "/api/auth/verify",
+      { token: secondMagic },
+      undefined,
+      "change-second-ip",
+    );
+    const secondSession = authSessionResponseSchema.parse(await secondVerified.json());
+
     // When changing with the correct current password
     const changed = await post(
       "/api/auth/password",
@@ -256,8 +266,17 @@ describe("magic link auth", () => {
       session.token,
       "change-ip",
     );
-    // Then it succeeds and old credentials stop working
+
+    // Then it succeeds, the current session survives, and other sessions are revoked
     expect(changed.status).toBe(204);
+    const currentMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    const secondMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${secondSession.token}` },
+    });
+    expect(currentMe.status).toBe(200);
+    expect(secondMe.status).toBe(401);
     const oldLogin = await post(
       "/api/auth/login",
       { email, password: oldPassword },
