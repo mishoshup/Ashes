@@ -39,7 +39,7 @@ export async function postReviewComment(input: {
     throw new Error(`GitHub comment list failed: ${listResponse.status}`);
   }
   const comments = commentsSchema.parse(await listResponse.json());
-  const existing = comments.find((comment) => comment.body?.includes(COMMENT_MARKER));
+  const existing = comments.find((comment) => comment.body?.startsWith(COMMENT_MARKER));
   const url = existing
     ? `https://api.github.com/repos/${input.repo}/issues/comments/${existing.id}`
     : `https://api.github.com/repos/${input.repo}/issues/${input.pr}/comments`;

@@ -3,7 +3,7 @@ export function escapeWorkflowCommand(message: string): string {
 }
 
 export function requireCommentCredentials(input: {
-  ci: boolean;
+  isCi: boolean;
   token?: string;
   repo?: string;
   pr?: string;
@@ -11,7 +11,7 @@ export function requireCommentCredentials(input: {
   if (input.token && input.repo && input.pr) {
     return;
   }
-  if (input.ci) {
+  if (input.isCi) {
     throw new Error(
       "GITHUB_TOKEN, GITHUB_REPOSITORY, and PR_NUMBER are required in CI to post the review",
     );
@@ -31,6 +31,6 @@ export async function postCommentOrFail(post: () => Promise<void>): Promise<void
   try {
     await post();
   } catch (error) {
-    fail(`Agent review comment failed: ${error instanceof Error ? error.message : String(error)}`);
+    fail(`Roast review comment failed: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

@@ -50,7 +50,7 @@ export async function loadRoastCore(): Promise<{ finder: string; verifier: strin
 
 export async function loadAshesRules(
   base: string,
-  options: { allowWorkingTree: boolean },
+  options: { shouldAllowWorktreeRules: boolean },
 ): Promise<string> {
   try {
     const child = Bun.spawn(["git", "show", `${base}:scripts/review/roast/ashes-rules.md`], {
@@ -65,7 +65,7 @@ export async function loadAshesRules(
     // Fall through to the explicit policy below.
   }
 
-  if (!options.allowWorkingTree) {
+  if (!options.shouldAllowWorktreeRules) {
     throw new Error(
       `Could not read review rules from ${base}; refusing to use working-tree rules.`,
     );

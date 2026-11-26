@@ -31,7 +31,7 @@ describe("Roast prompt composition", () => {
     // Then CI rules loading fails instead of falling back
     let error: unknown;
     try {
-      await loadAshesRules("refs/heads/does-not-exist", { allowWorkingTree: false });
+      await loadAshesRules("refs/heads/does-not-exist", { shouldAllowWorktreeRules: false });
     } catch (caught) {
       error = caught;
     }
@@ -42,7 +42,7 @@ describe("Roast prompt composition", () => {
     // Given a base that does not contain the rules
     // When local rules loading is allowed
     const rules = await loadAshesRules("refs/heads/does-not-exist", {
-      allowWorkingTree: true,
+      shouldAllowWorktreeRules: true,
     });
 
     // Then the working-tree rules are used

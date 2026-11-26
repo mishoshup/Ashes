@@ -13,10 +13,10 @@ describe("review gate", () => {
   it("requires comment credentials in CI", () => {
     // Given CI without a comment target
     // Then it rejects the run
-    expect(() => requireCommentCredentials({ ci: true })).toThrow();
+    expect(() => requireCommentCredentials({ isCi: true })).toThrow();
 
     // And local runs may continue without posting
-    expect(() => requireCommentCredentials({ ci: false })).not.toThrow();
+    expect(() => requireCommentCredentials({ isCi: false })).not.toThrow();
   });
 
   it("fails when the review comment cannot be posted", async () => {

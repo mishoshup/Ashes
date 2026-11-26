@@ -12,13 +12,9 @@ import {
 import { fail, postCommentOrFail, requireCommentCredentials } from "./review/gate";
 import { postReviewComment } from "./review/github";
 import { buildRoastEnv } from "./review/roast/env";
-import {
-  extractReportFromStderr,
-  extractReportPath,
-  isSafeReportPath,
-} from "./review/roast/report";
+import { resolveReportBody } from "./review/roast/report";
 
-const ci = process.argv.includes("--ci");
+const isCi = process.argv.includes("--ci");
 const base = process.env.PR_BASE_SHA ?? "origin/main";
 const pr = process.env.PR_NUMBER;
 const repo = process.env.GITHUB_REPOSITORY;
@@ -43,17 +39,17 @@ async function main(): Promise<void> {
     fail("Roast review did not run: REVIEW_API_KEY is not configured.");
     return;
   }
-  if (ci) {
+  if (isCi) {
     if (!pr) {
       fail("Roast review did not run: PR_NUMBER is required in CI.");
       return;
     }
-    requireCommentCredentials({ ci, token, repo, pr });
+    requireCommentCredentials({ isCi, token, repo, pr });
   }
 
   const [core, rules] = await Promise.all([
     loadRoastCore(),
-    loadAshesRules(base, { allowWorkingTree: !ci }),
+    loadAshesRules(base, { shouldAllowWorktreeRules: !isCi }),
   ]);
   const dir = join(process.env.RUNNER_TEMP ?? tmpdir(), "ashes-roast");
   mkdirSync(dir, { recursive: true });
@@ -77,7 +73,7 @@ async function main(): Promise<void> {
     "--task",
     task,
   ];
-  if (ci && pr) {
+  if (isCi && pr) {
     args.push("--pr", pr, "--base", base);
   } else {
     args.push("--base", base);
@@ -96,22 +92,19 @@ async function main(): Promise<void> {
 
   const dataHome = process.env.XDG_DATA_HOME || join(homedir(), ".local/share");
   const reportRoot = join(dataHome, "roast", "runs");
-  const reportPath = extractReportPath(stderr);
-  const safeReportPath = reportPath && isSafeReportPath(reportPath, reportRoot) ? reportPath : null;
-  let body = safeReportPath
-    ? await Bun.file(safeReportPath)
-        .text()
-        .catch(() => "")
-    : "";
+  const body = await resolveReportBody({
+    stdout,
+    stderr,
+    reportRoot,
+    readFile: (file) => Bun.file(file).text(),
+  });
   if (!body.trim()) {
-    body = extractReportFromStderr(stderr) || stdout.trim();
-  }
-  if (!body.trim()) {
-    fail(`Roast review did not run: no report was produced (exit ${code}).`);
+    const detail = stderr.trim().split("\n").slice(-20).join(" | ");
+    fail(`Roast review did not run: no report was produced (exit ${code}). ${detail}`);
     return;
   }
 
-  if (ci && token && repo && pr) {
+  if (isCi && token && repo && pr) {
     await postCommentOrFail(() => postReviewComment({ token, repo, pr, body }));
   } else {
     console.log(body);

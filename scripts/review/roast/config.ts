@@ -23,7 +23,7 @@ inference_profiles:
     protocol: chat
     model: ${toYamlString(input.model)}
     api_key_env: REVIEW_API_KEY
-    max_output_tokens: 32768
+    max_output_tokens: 65536
 roles:
   finder:
     profile: commandcode

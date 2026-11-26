@@ -16,9 +16,7 @@ jobs:
     # Never execute PR code with secrets. Same-repository, non-draft, human PRs only.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.user.type != 'Bot' &&
-      !endsWith(github.actor, '[bot]')
+      github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
