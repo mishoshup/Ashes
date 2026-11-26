@@ -12,7 +12,7 @@ description: Cloudflare Workers deploy, D1 migrations, Durable Object/R2/Queue s
 | `verify` | PR/push | format, lint, typecheck, arch, unit, Workers tests, build, Expo export |
 | `api-e2e` | PR | Vitest Workers pool + D1/R2/DO + seeded flow |
 | `web-e2e` | PR/nightly | Playwright phone/tablet/desktop |
-| `agent-review` | PR | read-only reviewer after deterministic gates |
+| `roast-review` | PR | pinned Roast v1.5.1, finder + verifier Flash, additive project rules, after deterministic gates |
 | `deploy-preview` | PR (trusted) | `wrangler versions upload` + preview URL |
 | `mobile-preview` | tags/manual | local EAS Android APK + iOS simulator `.app` |
 | `deploy` | main/tag | D1 migrations + `wrangler deploy` + web assets |
@@ -50,7 +50,7 @@ Replace the D1 `database_id` placeholder in `wrangler.jsonc` with the created ID
 - `knip`, `cspell`, `shellcheck`, `gitleaks`, `bun audit`.
 - Bundle-size budget, route-count budget, no duplicate deps.
 - Playwright web/tablet smoke + screenshots.
-- Agent review after deterministic gates; cannot override them.
+- Roast review after deterministic gates; cannot override them.
 - Nightly: full lint/tests, audit, EAS, perf, D1 backup/restore drill.
 
 ## Local EAS (unchanged)
@@ -66,7 +66,7 @@ Replace the D1 `database_id` placeholder in `wrangler.jsonc` with the created ID
 ## Cloudflare security
 
 - Previews under Cloudflare Access; production behind WAF/Bot Fight Mode.
-- `pull_request_target` only with base checkout + `gh pr diff`; no PR code execution.
+- `pull_request_target` only with base checkout + Roast `--pr` reading the PR head in a temporary worktree; no PR code execution.
 - Pin actions to SHAs; default `contents: read`; secrets step-scoped.
 - Concurrency cancels superseded PR runs; cache Bun/Gradle/CocoaPods/Playwright.
 - Upload logs/artifacts on failure.

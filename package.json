@@ -2,7 +2,10 @@
   "name": "ashes",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "packageManager": "bun@1.4.4",
   "engines": {
     "node": ">=24.0.0"
@@ -27,19 +30,20 @@
     "typecheck": "bun run --filter '*' typecheck && tsc -p tsconfig.scripts.json --noEmit",
     "lint": "oxlint --type-aware --deny-warnings .",
     "lint:fix": "oxlint --type-aware --fix .",
-    "format": "oxfmt --write apps/api apps/mobile/src packages .agent .github",
+    "format": "oxfmt --write apps/api apps/mobile/src packages scripts .agent .github",
     "format:check": "oxfmt --check apps/api apps/mobile/src packages scripts .agent .github",
     "arch": "bun scripts/architecture.ts",
     "verify": "bun scripts/verify.ts",
-    "review": "bun run verify && bun scripts/agent-review.ts",
-    "review:ci": "bun scripts/agent-review.ts --ci",
+    "review": "bun run verify && bun scripts/roast-review.ts",
+    "review:ci": "bun scripts/roast-review.ts --ci",
     "seed": "bun scripts/seed.ts",
     "e2e": "bun scripts/e2e.ts",
     "assets": "bun scripts/generate-assets.ts",
     "doctor": "bun scripts/doctor.ts",
     "build:android:local": "bun --cwd=apps/mobile run build:android:local",
     "build:ios:local": "bun --cwd=apps/mobile run build:ios:local",
-    "docker:api": "docker build -f apps/api/Dockerfile -t ashes-api ."
+    "docker:api": "docker build -f apps/api/Dockerfile -t ashes-api .",
+    "review:install": "go install github.com/bluesky-social/roast/cmd/roast@v1.5.1"
   },
   "devDependencies": {
     "@types/bun": "1.4.5",
