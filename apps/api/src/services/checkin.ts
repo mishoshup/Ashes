@@ -158,7 +158,7 @@ export async function recordCheckIn(
   const tags = [...new Set(promptTags(input.promptId, input.answer))];
   const normalizedClientId = clientId?.trim() || undefined;
   const id = normalizedClientId
-    ? `chk_${(await sha256Hex(`${userId}:${normalizedClientId}`)).slice(0, 22)}`
+    ? `chk_${(await sha256Hex(JSON.stringify({ userId, clientId: normalizedClientId }))).slice(0, 22)}`
     : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
   const statements = [
     env.DB.prepare(

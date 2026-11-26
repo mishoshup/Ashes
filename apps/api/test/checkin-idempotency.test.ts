@@ -7,6 +7,7 @@ import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { withIdempotency } from "../src/services/idempotency";
+import { sha256Hex } from "../src/lib/crypto";
 
 async function post(
   path: string,
@@ -179,6 +180,39 @@ describe("check-in idempotency", () => {
       .bind(id)
       .first<{ count: number }>();
     expect(count?.count).toBe(2);
+  });
+
+  it("recovers a check-in written with the legacy deterministic id", async () => {
+    // Given a check-in written with the previous id formula
+    const token = await newSession("legacy-id@example.com");
+    const id = await findUserId("legacy-id@example.com");
+    const key = crypto.randomUUID();
+    const legacyId = `chk_${(await sha256Hex(JSON.stringify({ userId: id, clientId: key }))).slice(0, 22)}`;
+    const now = new Date().toISOString();
+    await env.DB.prepare(
+      `INSERT INTO check_ins
+       (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
+       VALUES (?, ?, 'trigger', 'stress', NULL, NULL, NULL, ?, ?)`,
+    )
+      .bind(legacyId, id, key, now)
+      .run();
+    await env.DB.prepare("INSERT INTO check_in_tags (check_in_id, tag) VALUES (?, 'stress')")
+      .bind(legacyId)
+      .run();
+
+    // When the same key is retried
+    const response = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "stress" },
+      token,
+      "local",
+      key,
+    );
+
+    // Then the legacy row is recovered instead of a 500
+    expect(response.status).toBe(200);
+    const body = checkInResponseSchema.parse(await response.json());
+    expect(body.pattern?.count).toBe(1);
   });
 
   it("rejects a changed answer after the idempotency claim is gone", async () => {
