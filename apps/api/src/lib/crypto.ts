@@ -29,3 +29,24 @@ export function newSessionExpiry(now: Date): string {
 export function magicLinkExpiry(now: Date): string {
   return new Date(now.getTime() + 10 * 60 * 1000).toISOString();
 }
+
+export function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+export function base64UrlDecode(value: string): Uint8Array | null {
+  try {
+    const binary = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}

@@ -19,6 +19,8 @@ export const users = sqliteTable(
     accent: text("accent").notNull(),
     createdAt: text("created_at").notNull(),
     emailVerifiedAt: text("email_verified_at"),
+    passwordHash: text("password_hash"),
+    passwordUpdatedAt: text("password_updated_at"),
     updatedAt: text("updated_at").notNull(),
   },
   (table) => [index("users_created_idx").on(table.createdAt)],
