@@ -14,6 +14,7 @@ import { bearerToken, requireAuth } from "../middleware/auth";
 import { sendMagicLink, verifyTurnstile } from "../services/email";
 import { hashPassword, verifyPassword } from "../services/password";
 import { checkRateLimit } from "../lib/rate-limit";
+import { hashRequest, withIdempotency } from "../services/idempotency";
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from "../lib/session-cookie";
 import { revokeSession, rotateSession, sessionMetaFromRequest } from "../services/sessions";
 import {
@@ -195,40 +196,52 @@ authRoutes.post("/password", requireAuth, async (c) => {
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
   }
   const pepper = requirePasswordPepper(c.env);
-  const current = await findPasswordHash(c.env, user.id);
-  if (current) {
-    if (!parsed.data.currentPassword) {
-      badRequest("Enter your current password");
-    }
-    const valid = await verifyPassword(parsed.data.currentPassword, current, pepper);
-    if (!valid) {
-      badRequest("Current password is incorrect");
-    }
-  }
   const now = new Date();
-  await setPasswordAndRevokeOthers(
+  const response = await withIdempotency(
     c.env,
     user.id,
-    await hashPassword(parsed.data.password, pepper),
-    c.get("sessionToken"),
+    c.req.header("Idempotency-Key"),
+    await hashRequest(parsed.data),
+    setPasswordResponseSchema,
     now,
+    async () => {
+      const current = await findPasswordHash(c.env, user.id);
+      if (current) {
+        if (!parsed.data.currentPassword) {
+          badRequest("Enter your current password");
+        }
+        const valid = await verifyPassword(parsed.data.currentPassword, current, pepper);
+        if (!valid) {
+          badRequest("Current password is incorrect");
+        }
+      }
+      await setPasswordAndRevokeOthers(
+        c.env,
+        user.id,
+        await hashPassword(parsed.data.password, pepper),
+        c.get("sessionToken"),
+        now,
+      );
+      const token = await rotateSession(
+        c.env,
+        user.id,
+        c.get("sessionToken"),
+        now,
+        await sessionMetaFromRequest(c),
+      );
+      if (!token) {
+        throw new HTTPException(401, { message: "Session expired. Sign in again." });
+      }
+      if (c.get("authKind") === "cookie") {
+        setSessionCookie(c, token, c.env);
+        return setPasswordResponseSchema.parse({ ok: true });
+      }
+      return setPasswordResponseSchema.parse({ ok: true, token });
+    },
+    () => ({ ok: true }),
   );
-  const token = await rotateSession(
-    c.env,
-    user.id,
-    c.get("sessionToken"),
-    now,
-    await sessionMetaFromRequest(c),
-  );
-  if (!token) {
-    throw new HTTPException(401, { message: "Session expired. Sign in again." });
-  }
   noStore(c);
-  if (c.get("authKind") === "cookie") {
-    setSessionCookie(c, token, c.env);
-    return c.json(setPasswordResponseSchema.parse({ ok: true }));
-  }
-  return c.json(setPasswordResponseSchema.parse({ ok: true, token }));
+  return c.json(response);
 });
 
 authRoutes.post("/logout", async (c) => {

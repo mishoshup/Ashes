@@ -333,6 +333,40 @@ describe("sessions", () => {
     expect(blocked.headers.get("retry-after")).toBe("60");
   });
 
+  it("replays a password change without rotating again", async () => {
+    // Given a session and an idempotent password change
+    const first = await mobileSession("idempotent-password@example.com");
+    const key = crypto.randomUUID();
+    const body = JSON.stringify({ password: "correct horse battery staple" });
+    const change = (token: string) =>
+      SELF.fetch("https://example.com/api/auth/password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "Idempotency-Key": key,
+        },
+        body,
+      });
+
+    const initial = await change(first);
+    expect(initial.status).toBe(200);
+    const initialBody = setPasswordResponseSchema.parse(await initial.json());
+    if (!initialBody.token) {
+      throw new Error("expected a rotated token");
+    }
+
+    // When the same request is retried with the rotated token
+    const replay = await change(initialBody.token);
+    expect(replay.status).toBe(200);
+    const replayBody = setPasswordResponseSchema.parse(await replay.json());
+
+    // Then the response is replayed without another rotation
+    expect(replayBody.token).toBeUndefined();
+    expect((await me(initialBody.token)).status).toBe(200);
+    expect((await me(first)).status).toBe(401);
+  });
+
   it("rotates on password change, allows in-flight requests, then detects reuse", async () => {
     // Given a mobile session
     const first = await mobileSession("rotation@example.com");

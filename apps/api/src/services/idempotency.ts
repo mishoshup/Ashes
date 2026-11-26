@@ -29,6 +29,7 @@ export async function withIdempotency<T>(
   schema: z.ZodType<T>,
   now: Date,
   run: () => Promise<T>,
+  persist?: (value: T) => unknown,
 ): Promise<T> {
   if (!key) {
     return run();
@@ -79,7 +80,7 @@ export async function withIdempotency<T>(
         `UPDATE idempotency_keys SET response_json = ?
          WHERE user_id = ? AND key = ? AND created_at = ?`,
       )
-        .bind(JSON.stringify(value), userId, key, createdAt)
+        .bind(JSON.stringify(persist ? persist(value) : value), userId, key, createdAt)
         .run();
 
       return value;
