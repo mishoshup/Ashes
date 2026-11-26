@@ -12,7 +12,7 @@ import { HTTPException } from "hono/http-exception";
 import { checkRateLimit } from "../lib/rate-limit";
 import { clearSessionCookie } from "../lib/session-cookie";
 import { requireAuth } from "../middleware/auth";
-import { hashRequest, withIdempotency } from "../services/idempotency";
+import { hashRequestForKey, withIdempotency } from "../services/idempotency";
 import { listSessions, revokeAllSessions, revokeSessionById } from "../services/sessions";
 import type { AppEnv } from "../types";
 
@@ -52,11 +52,12 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
     throw new HTTPException(400, { message: "Invalid revoke request" });
   }
   const now = new Date();
+  const idempotencyKey = c.req.header("Idempotency-Key");
   const response = await withIdempotency(
     c.env,
     user.id,
-    c.req.header("Idempotency-Key"),
-    await hashRequest(c.env, parsed.data),
+    idempotencyKey,
+    await hashRequestForKey(c.env, idempotencyKey, parsed.data),
     revokeAllSessionsResponseSchema,
     now,
     async () => {
@@ -95,11 +96,12 @@ meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
     throw new HTTPException(404, { message: "Session not found" });
   }
   const now = new Date();
+  const idempotencyKey = c.req.header("Idempotency-Key");
   const response = await withIdempotency(
     c.env,
     user.id,
-    c.req.header("Idempotency-Key"),
-    await hashRequest(c.env, { sessionId: parsed.data }),
+    idempotencyKey,
+    await hashRequestForKey(c.env, idempotencyKey, { sessionId: parsed.data }),
     revokeSessionResponseSchema,
     now,
     async () => {

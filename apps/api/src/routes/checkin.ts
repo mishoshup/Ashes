@@ -21,7 +21,7 @@ import {
   recordCheckIn,
   topicBySlug,
 } from "../services/checkin";
-import { hashRequest, withIdempotency } from "../services/idempotency";
+import { hashRequestForKey, withIdempotency } from "../services/idempotency";
 import type { AppEnv } from "../types";
 
 export const checkInRoutes = new Hono<AppEnv>();
@@ -50,11 +50,12 @@ checkInRoutes.post("/", requireAuth, async (c) => {
     throw new HTTPException(429, { message: "Take a moment, then try again" });
   }
   const now = new Date();
+  const idempotencyKey = c.req.header("Idempotency-Key");
   const response = await withIdempotency(
     c.env,
     user.id,
-    c.req.header("Idempotency-Key"),
-    await hashRequest(c.env, parsed.data),
+    idempotencyKey,
+    await hashRequestForKey(c.env, idempotencyKey, parsed.data),
     checkInResponseSchema,
     now,
     async () =>

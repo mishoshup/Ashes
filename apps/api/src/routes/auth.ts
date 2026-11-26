@@ -15,7 +15,7 @@ import { bearerToken, requireAuth } from "../middleware/auth";
 import { sendMagicLink, verifyTurnstile } from "../services/email";
 import { hashPassword, verifyPassword } from "../services/password";
 import { checkRateLimit } from "../lib/rate-limit";
-import { hashRequest, withIdempotency } from "../services/idempotency";
+import { hashRequestForKey, withIdempotency } from "../services/idempotency";
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from "../lib/session-cookie";
 import {
   revokeAllSessions,
@@ -218,11 +218,12 @@ authRoutes.post("/password", requireAuth, async (c) => {
   }
   const pepper = requirePasswordPepper(c.env);
   const now = new Date();
+  const idempotencyKey = c.req.header("Idempotency-Key");
   const response = await withIdempotency(
     c.env,
     user.id,
-    c.req.header("Idempotency-Key"),
-    await hashRequest(c.env, parsed.data),
+    idempotencyKey,
+    await hashRequestForKey(c.env, idempotencyKey, parsed.data),
     setPasswordResponseSchema,
     now,
     async () => {

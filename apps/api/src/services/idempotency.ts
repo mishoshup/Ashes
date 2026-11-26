@@ -6,6 +6,14 @@ const KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_CLAIM_MS = 60 * 1000;
 
+export async function hashRequestForKey(
+  env: Env,
+  key: string | undefined,
+  value: unknown,
+): Promise<string> {
+  return key ? hashRequest(env, value) : "";
+}
+
 export async function hashRequest(env: Env, value: unknown): Promise<string> {
   if (!env.SESSION_PEPPER && env.ENVIRONMENT === "production") {
     throw new Error("SESSION_PEPPER is required for idempotency fingerprints");
