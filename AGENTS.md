@@ -1,7 +1,8 @@
 # AGENTS.md
 
-Ashes is a community-first platform: chats, channels, publishing, discovery, club, profile.
-**The community is the homepage. There is no algorithmic feed and no endless-scroll home.**
+Ashes helps people understand why they smoke through short questions, private reflections,
+and a community organized around the psychology of smoking.
+**The community is where people learn from each other. There is no algorithmic feed and no endless-scroll home.**
 
 This file is the only global instruction source. `CLAUDE.md`, `.agent/README.md`, and
 `.claude/README.md` are symlinks to it. Skills live in `.agent/skills`; `.claude/skills`,

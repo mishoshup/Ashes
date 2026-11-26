@@ -4,7 +4,7 @@
     "slug": "ashes",
     "version": "0.1.0",
     "orientation": "default",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ashes-icon.png",
     "scheme": "ashes",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -15,15 +15,14 @@
       "package": "club.ashes.app",
       "adaptiveIcon": {
         "backgroundColor": "#0B0A09",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/ashes-foreground.png",
+        "monochromeImage": "./assets/images/ashes-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/ashes-favicon.png"
     },
     "plugins": [
       "expo-router",
@@ -31,8 +30,8 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#0B0A09",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "image": "./assets/images/ashes-splash.png",
+          "imageWidth": 320
         }
       ]
     ],
