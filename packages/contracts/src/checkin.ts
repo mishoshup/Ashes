@@ -69,6 +69,7 @@ export const patternChannelSchema = z.object({
   id: idSchema,
   slug: z.string(),
   name: z.string(),
+  communitySlug: z.string(),
 });
 export type PatternChannel = z.infer<typeof patternChannelSchema>;
 

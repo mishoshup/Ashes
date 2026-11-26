@@ -48,7 +48,11 @@ export async function listPublicCommunities(env: Env): Promise<CommunityDirector
      FROM communities c
      LEFT JOIN channels ch ON ch.community_id = c.id AND ch.visibility = 'public'
      WHERE c.visibility = 'public'
-     ORDER BY c.name COLLATE NOCASE, ch.name COLLATE NOCASE`,
+     ORDER BY CASE c.slug
+       WHEN 'pressure' THEN 0 WHEN 'idle' THEN 1 WHEN 'other-people' THEN 2
+       WHEN 'feelings' THEN 3 WHEN 'cravings' THEN 4 WHEN 'quitting' THEN 5
+       WHEN 'learning-from-others' THEN 6 ELSE 7 END,
+       ch.name COLLATE NOCASE`,
   ).all<CommunityRow>();
 
   const communities = new Map<string, CommunityDirectory>();

@@ -52,7 +52,7 @@ describe("public community directory", () => {
     // Then only public communities and public channels are returned
     expect(response.status).toBe(200);
     const body = communitiesResponseSchema.parse(await response.json());
-    expect(body.items.map((community) => community.name)).toEqual(["Idle", "Pressure"]);
+    expect(body.items.map((community) => community.name)).toEqual(["Pressure", "Idle"]);
 
     const pressure = body.items.find((community) => community.slug === "pressure");
     expect(pressure?.channels.map((channel) => channel.slug)).toEqual([

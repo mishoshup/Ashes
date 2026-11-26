@@ -13,6 +13,7 @@ export type CheckInTopicRow = {
   channel_id: string | null;
   channel_slug: string | null;
   channel_name: string | null;
+  community_slug: string | null;
 };
 
 export function checkInPrompt(id: PromptId) {
@@ -27,9 +28,11 @@ export function checkInPrompt(id: PromptId) {
 
 export async function topicByTrigger(env: Env, trigger: Trigger): Promise<CheckInTopicRow | null> {
   return env.DB.prepare(
-    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name
+    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
+            c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id
+     LEFT JOIN communities c ON c.id = ch.community_id
      WHERE pt.trigger = ?`,
   )
     .bind(trigger)
@@ -38,9 +41,11 @@ export async function topicByTrigger(env: Env, trigger: Trigger): Promise<CheckI
 
 export async function topicBySlug(env: Env, slug: string): Promise<CheckInTopicRow | null> {
   return env.DB.prepare(
-    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name
+    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
+            c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id
+     LEFT JOIN communities c ON c.id = ch.community_id
      WHERE pt.slug = ?`,
   )
     .bind(slug)
@@ -57,10 +62,16 @@ function topicSummary(row: CheckInTopicRow) {
 
 export async function listTopics(env: Env) {
   const rows = await env.DB.prepare(
-    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name
+    `SELECT pt.*, ch.id AS channel_id, ch.slug AS channel_slug, ch.name AS channel_name,
+            c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id
-     ORDER BY pt.title COLLATE NOCASE`,
+     LEFT JOIN communities c ON c.id = ch.community_id
+     ORDER BY CASE pt.trigger
+       WHEN 'stress' THEN 0 WHEN 'social' THEN 1 WHEN 'boredom' THEN 2
+       WHEN 'routine' THEN 3 WHEN 'emotional' THEN 4 WHEN 'reward' THEN 5
+       WHEN 'identity' THEN 6 WHEN 'avoidance' THEN 7 WHEN 'cravings' THEN 8
+       ELSE 9 END, pt.title COLLATE NOCASE`,
   ).all<CheckInTopicRow>();
 
   return rows.results.flatMap((row) => {
@@ -79,10 +90,15 @@ export async function listTopics(env: Env) {
 }
 
 function channelSummary(row: CheckInTopicRow) {
-  if (!row.channel_id || !row.channel_slug || !row.channel_name) {
+  if (!row.channel_id || !row.channel_slug || !row.channel_name || !row.community_slug) {
     return null;
   }
-  return { id: row.channel_id, slug: row.channel_slug, name: row.channel_name };
+  return {
+    id: row.channel_id,
+    slug: row.channel_slug,
+    name: row.channel_name,
+    communitySlug: row.community_slug,
+  };
 }
 
 const TRIGGER_LABEL: Record<Trigger, string> = {
