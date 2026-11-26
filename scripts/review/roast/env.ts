@@ -1,3 +1,21 @@
+import { z } from "zod";
+
+export const reviewEnvSchema = z.object({
+  PR_BASE_SHA: z
+    .string()
+    .regex(/^[A-Za-z0-9._/-]+$/u)
+    .optional(),
+  PR_NUMBER: z.string().regex(/^\d+$/u).optional(),
+  GITHUB_REPOSITORY: z
+    .string()
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u)
+    .optional(),
+  GITHUB_TOKEN: z.string().min(1).optional(),
+  REVIEW_API_KEY: z.string().min(1).optional(),
+  REVIEW_BASE_URL: z.string().url().optional(),
+  ROAST_MODEL: z.string().min(1).optional(),
+});
+
 const ALLOWED = new Set([
   "PATH",
   "HOME",

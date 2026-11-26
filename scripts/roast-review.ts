@@ -11,16 +11,18 @@ import {
 } from "./review/roast/prompts";
 import { fail, postCommentOrFail, requireCommentCredentials } from "./review/gate";
 import { postReviewComment } from "./review/github";
-import { buildRoastEnv } from "./review/roast/env";
+import { buildRoastEnv, reviewEnvSchema } from "./review/roast/env";
 import { resolveReportBody } from "./review/roast/report";
 
 const isCi = process.argv.includes("--ci");
-const base = process.env.PR_BASE_SHA ?? "origin/main";
-const pr = process.env.PR_NUMBER;
-const repo = process.env.GITHUB_REPOSITORY;
-const token = process.env.GITHUB_TOKEN;
-const baseUrl = process.env.REVIEW_BASE_URL || "https://api.commandcode.ai/provider/v1";
-const model = process.env.ROAST_MODEL || "deepseek/deepseek-v4.1-flash";
+const parsedEnv = reviewEnvSchema.safeParse(process.env);
+const env = parsedEnv.success ? parsedEnv.data : {};
+const base = env.PR_BASE_SHA ?? "origin/main";
+const pr = env.PR_NUMBER;
+const repo = env.GITHUB_REPOSITORY;
+const token = env.GITHUB_TOKEN;
+const baseUrl = env.REVIEW_BASE_URL || "https://api.commandcode.ai/provider/v1";
+const model = env.ROAST_MODEL || "deepseek/deepseek-v4.1-flash";
 const task = "Review this pull request against the Ashes rules.";
 
 async function main(): Promise<void> {
@@ -35,7 +37,12 @@ async function main(): Promise<void> {
     fail("Roast v1.5.1 is not installed. Install the pinned binary before reviewing.");
     return;
   }
-  if (!process.env.REVIEW_API_KEY) {
+  if (!parsedEnv.success) {
+    const fields = parsedEnv.error.issues.map((issue) => issue.path.join(".")).join(", ");
+    fail(`Roast review did not run: invalid environment (${fields}).`);
+    return;
+  }
+  if (!env.REVIEW_API_KEY) {
     fail("Roast review did not run: REVIEW_API_KEY is not configured.");
     return;
   }
@@ -59,6 +66,7 @@ async function main(): Promise<void> {
   writeFileSync(verifierPath, composeVerifierPrompt(core.verifier, rules));
   const configPath = writeRoastConfig({ dir, finderPath, verifierPath, baseUrl, model });
 
+  // Roast reports every finding. --max-severity is the exit-code threshold, not a cap.
   const args = [
     "roast",
     "review",

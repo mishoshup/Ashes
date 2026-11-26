@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { buildRoastEnv } from "./env";
+import { buildRoastEnv, reviewEnvSchema } from "./env";
 
 describe("Roast environment", () => {
   it("does not give the write token to the third-party binary", () => {
@@ -18,5 +18,17 @@ describe("Roast environment", () => {
     expect(env.PATH).toBe("/usr/bin");
     expect(env.GITHUB_TOKEN).toBeUndefined();
     expect(env.GH_TOKEN).toBeUndefined();
+  });
+
+  it("validates the PR number and repository shape", () => {
+    // Given malformed identifiers
+    // Then they are rejected before reaching a GitHub URL
+    expect(reviewEnvSchema.safeParse({ PR_NUMBER: "1/2" }).success).toBe(false);
+    expect(reviewEnvSchema.safeParse({ GITHUB_REPOSITORY: "not-a-repo" }).success).toBe(false);
+
+    // And valid identifiers pass
+    expect(
+      reviewEnvSchema.safeParse({ PR_NUMBER: "12", GITHUB_REPOSITORY: "owner/repo" }).success,
+    ).toBe(true);
   });
 });
