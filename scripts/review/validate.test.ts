@@ -20,8 +20,14 @@ const base = {
 
 describe("parseReviewJson", () => {
   it("parses plain and fenced JSON", () => {
-    expect(parseReviewJson('{"ok":true}')).toEqual({ ok: true });
-    expect(parseReviewJson('```json\n{"ok":true}\n```')).toEqual({ ok: true });
+    // Given plain and markdown-fenced JSON payloads
+    // When they are parsed
+    const plain = parseReviewJson('{"ok":true}');
+    const fenced = parseReviewJson('```json\n{"ok":true}\n```');
+
+    // Then both produce the same object
+    expect(plain).toEqual({ ok: true });
+    expect(fenced).toEqual({ ok: true });
   });
 });
 

@@ -4,8 +4,8 @@ const SOURCE_ROOTS = ["apps/api/src", "packages"];
 const FORBIDDEN = [
   { pattern: /\bbun:sqlite\b/, reason: "Use D1; Bun SQLite is not available on Workers." },
   {
-    pattern: /\bBun\.(password|file|serve|CryptoHasher)\b/,
-    reason: "Use Web Crypto and Workers bindings.",
+    pattern: /\bBun\./u,
+    reason: "Bun runtime APIs are forbidden in Workers. Use Web Crypto and Workers bindings.",
   },
   { pattern: /from\s+["']node:/, reason: "Node builtins are not guaranteed on Workers." },
   {

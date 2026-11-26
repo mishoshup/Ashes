@@ -17,12 +17,36 @@ describe("prompt boundary", () => {
     );
   });
 
-  it("does not put model-facing file lists outside the boundary", () => {
-    // Given a prompt with rules
+  it("keeps changed paths inside the untrusted boundary", () => {
+    // Given a diff containing a changed path
+    const diff = `diff --git a/apps/api/src/app.ts b/apps/api/src/app.ts
+--- a/apps/api/src/app.ts
++++ b/apps/api/src/app.ts
+@@ -1 +1 @@
+-const a = 1;
++const a = 2;`;
+
+    // When the prompt is built
+    const prompt = buildUserPrompt(diff, "fixed-nonce");
+    const start = prompt.indexOf("<<<UNTRUSTED_DIFF_fixed-nonce>>>");
+    const end = prompt.indexOf("<<<END_UNTRUSTED_DIFF_fixed-nonce>>>");
+    const path = prompt.indexOf("apps/api/src/app.ts");
+
+    // Then the path is data inside the boundary, not a separate model-facing list
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(path).toBeGreaterThan(start);
+    expect(path).toBeLessThan(end);
+    expect(prompt).not.toContain("Changed files:");
+  });
+
+  it("includes the repository rules in the system prompt", () => {
+    // Given a rules string
     const prompt = buildSystemPrompt("rule text");
 
-    // When / Then the untrusted-data instruction is present
+    // When / Then it is present inside the rules boundary
     expect(prompt).toContain("<rules>");
+    expect(prompt).toContain("rule text");
     expect(prompt).toContain("untrusted");
   });
 });
