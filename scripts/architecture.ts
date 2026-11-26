@@ -22,10 +22,10 @@ const MAX_LINES = 300;
 
 const failures: string[] = [];
 
-const files: string[] = [];
-for (const root of SOURCE_ROOTS) {
-  files.push(...(await Array.fromAsync(new Glob(`${root}/**/*.{ts,tsx}`).scan("."))));
-}
+const discovered = await Promise.all(
+  SOURCE_ROOTS.map((root) => Array.fromAsync(new Glob(`${root}/**/*.{ts,tsx}`).scan("."))),
+);
+const files = discovered.flat();
 
 const sources = await Promise.all(
   files.map(async (fullPath) => ({ fullPath, source: await Bun.file(fullPath).text() })),
