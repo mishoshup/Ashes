@@ -15,10 +15,11 @@ export async function hashRequestForKey(
 }
 
 export async function hashRequest(env: Env, value: unknown): Promise<string> {
-  if (!env.SESSION_PEPPER && env.ENVIRONMENT === "production") {
-    throw new Error("SESSION_PEPPER is required for idempotency fingerprints");
+  const configuredSecret = env.SESSION_PEPPER || env.PASSWORD_PEPPER;
+  if (!configuredSecret && env.ENVIRONMENT === "production") {
+    throw new Error("SESSION_PEPPER or PASSWORD_PEPPER is required for idempotency fingerprints");
   }
-  const secret = env.SESSION_PEPPER || env.PASSWORD_PEPPER || "ashes-dev-idempotency-key";
+  const secret = configuredSecret || "ashes-dev-idempotency-key";
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
