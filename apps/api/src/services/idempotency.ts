@@ -41,22 +41,46 @@ export async function withIdempotency<T>(
   const expiresAt = new Date(now.getTime() + TTL_MS).toISOString();
   const staleBefore = new Date(now.getTime() - STALE_CLAIM_MS).toISOString();
 
-  const claim = await env.DB.prepare(
-    `INSERT INTO idempotency_keys
-       (user_id, key, request_hash, response_json, created_at, expires_at)
-     VALUES (?, ?, ?, '', ?, ?)
-     ON CONFLICT(user_id, key) DO UPDATE SET
-       request_hash = excluded.request_hash,
-       response_json = '',
-       created_at = excluded.created_at,
-       expires_at = excluded.expires_at
-     WHERE idempotency_keys.expires_at <= excluded.created_at
-        OR (idempotency_keys.response_json = '' AND idempotency_keys.created_at <= ?)`,
-  )
-    .bind(userId, key, requestHash, createdAt, expiresAt, staleBefore)
-    .run();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const claim = await env.DB.prepare(
+      `INSERT INTO idempotency_keys
+         (user_id, key, request_hash, response_json, created_at, expires_at)
+       VALUES (?, ?, ?, '', ?, ?)
+       ON CONFLICT(user_id, key) DO UPDATE SET
+         request_hash = excluded.request_hash,
+         response_json = '',
+         created_at = excluded.created_at,
+         expires_at = excluded.expires_at
+       WHERE idempotency_keys.expires_at <= excluded.created_at
+          OR (idempotency_keys.response_json = '' AND idempotency_keys.created_at <= ?)`,
+    )
+      .bind(userId, key, requestHash, createdAt, expiresAt, staleBefore)
+      .run();
 
-  if (claim.meta.changes === 0) {
+    if (claim.meta.changes > 0) {
+      let value: T;
+      try {
+        value = await run();
+      } catch (error) {
+        await env.DB.prepare(
+          `DELETE FROM idempotency_keys
+           WHERE user_id = ? AND key = ? AND response_json = '' AND created_at = ?`,
+        )
+          .bind(userId, key, createdAt)
+          .run();
+        throw error;
+      }
+
+      await env.DB.prepare(
+        `UPDATE idempotency_keys SET response_json = ?
+         WHERE user_id = ? AND key = ? AND created_at = ?`,
+      )
+        .bind(JSON.stringify(value), userId, key, createdAt)
+        .run();
+
+      return value;
+    }
+
     const existing = await env.DB.prepare(
       `SELECT request_hash, response_json FROM idempotency_keys
        WHERE user_id = ? AND key = ?`,
@@ -64,7 +88,12 @@ export async function withIdempotency<T>(
       .bind(userId, key)
       .first<{ request_hash: string; response_json: string }>();
 
-    if (!existing || existing.response_json === "") {
+    // The owner may have released a failed claim between our INSERT and SELECT.
+    // The row is free, so try the claim once more instead of reporting 409.
+    if (!existing) {
+      continue;
+    }
+    if (existing.response_json === "") {
       throw new HTTPException(409, { message: "Request in progress. Try again in a moment." });
     }
     if (existing.request_hash !== requestHash) {
@@ -74,25 +103,5 @@ export async function withIdempotency<T>(
     return schema.parse(parsed);
   }
 
-  let value: T;
-  try {
-    value = await run();
-  } catch (error) {
-    await env.DB.prepare(
-      `DELETE FROM idempotency_keys
-       WHERE user_id = ? AND key = ? AND response_json = '' AND created_at = ?`,
-    )
-      .bind(userId, key, createdAt)
-      .run();
-    throw error;
-  }
-
-  await env.DB.prepare(
-    `UPDATE idempotency_keys SET response_json = ?
-     WHERE user_id = ? AND key = ? AND created_at = ?`,
-  )
-    .bind(JSON.stringify(value), userId, key, createdAt)
-    .run();
-
-  return value;
+  throw new HTTPException(409, { message: "Request in progress. Try again in a moment." });
 }
