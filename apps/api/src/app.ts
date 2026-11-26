@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
+import { authRoutes, meRoutes } from "./routes/auth";
 import type { AppEnv } from "./types";
 
 const SERVICE = "ashes-api";
@@ -17,7 +18,7 @@ export function createApp(): Hono<AppEnv> {
   });
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
-    const allowed = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN];
+    const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN];
     const allowOrigin = origin && allowed.includes(origin) ? origin : allowed[0];
     if (allowOrigin) {
       c.header("Access-Control-Allow-Origin", allowOrigin);
@@ -53,6 +54,9 @@ export function createApp(): Hono<AppEnv> {
     }),
   );
 
+  app.route("/api/auth", authRoutes);
+  app.route("/api/me", meRoutes);
+
   app.get("/ws/:room", async (c) => {
     if (c.req.header("Upgrade")?.toLowerCase() !== "websocket") {
       return c.text("Expected WebSocket", 426);
@@ -84,7 +88,14 @@ export function createApp(): Hono<AppEnv> {
       return c.json(
         {
           error: {
-            code: error.status === 401 ? "unauthorized" : "bad_request",
+            code:
+              error.status === 401
+                ? "unauthorized"
+                : error.status === 404
+                  ? "not_found"
+                  : error.status === 429
+                    ? "rate_limited"
+                    : "bad_request",
             message: error.message,
             requestId,
           },

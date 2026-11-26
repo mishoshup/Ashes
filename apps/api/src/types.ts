@@ -1,11 +1,10 @@
-export type Env = {
-  DB: D1Database;
-  MEDIA: R2Bucket;
-  ROOM: DurableObjectNamespace;
-  JOBS: Queue;
+import type { AuthUser } from "./services/users";
+
+type CloudflareBindings = Omit<Cloudflare.Env, "ENVIRONMENT"> & {
   ENVIRONMENT: string;
-  WEB_ORIGIN: string;
-  APP_ORIGIN: string;
+};
+
+export type Env = CloudflareBindings & {
   RESEND_API_KEY?: string;
   SESSION_PEPPER?: string;
   TURNSTILE_SECRET?: string;
@@ -15,5 +14,7 @@ export type AppEnv = {
   Bindings: Env;
   Variables: {
     requestId: string;
+    user: AuthUser;
+    sessionToken: string;
   };
 };

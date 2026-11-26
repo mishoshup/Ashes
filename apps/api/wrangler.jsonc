@@ -49,5 +49,6 @@
     "ENVIRONMENT": "development",
     "WEB_ORIGIN": "http://localhost:8081",
     "APP_ORIGIN": "http://localhost:8081",
+    "EMAIL_FROM": "Ashes <hello@ashes.club>",
   },
 }

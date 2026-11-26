@@ -1,6 +1,11 @@
 /// <reference types="@cloudflare/vitest-plugin/types" />
-import type { Env } from "../src/types";
+import type { D1Migration } from "@cloudflare/vitest-plugin";
 
-declare module "cloudflare:test" {
-  interface ProvidedEnv extends Env {}
+declare global {
+  namespace Cloudflare {
+    interface Env {
+      TEST_MIGRATIONS: D1Migration[];
+      SESSION_PEPPER?: string;
+    }
+  }
 }
