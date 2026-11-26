@@ -160,12 +160,12 @@ export async function recordCheckIn(
   const id = normalizedClientId
     ? `chk_${(await hashRequest({ userId, clientId: normalizedClientId })).slice(0, 22)}`
     : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
-  const inserted = await env.DB.prepare(
-    `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT DO NOTHING`,
-  )
-    .bind(
+  const statements = [
+    env.DB.prepare(
+      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT DO NOTHING`,
+    ).bind(
       id,
       userId,
       input.promptId,
@@ -175,10 +175,35 @@ export async function recordCheckIn(
       input.note ?? null,
       normalizedClientId ?? null,
       now.toISOString(),
-    )
-    .run();
+    ),
+    ...tags.map((tag) =>
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO check_in_tags (check_in_id, tag)
+         SELECT ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM check_ins
+           WHERE id = ? AND prompt_id = ? AND answer = ?
+             AND COALESCE(feeling, '') = ?
+             AND COALESCE(context, '') = ?
+             AND COALESCE(note, '') = ?
+         )`,
+      ).bind(
+        id,
+        tag,
+        id,
+        input.promptId,
+        input.answer,
+        input.feeling ?? "",
+        input.context ?? "",
+        input.note ?? "",
+      ),
+    ),
+  ];
 
-  if (inserted.meta.changes === 0) {
+  const results = await env.DB.batch(statements);
+  const inserted = results[0]?.meta.changes ?? 0;
+
+  if (inserted === 0) {
     const existing = await env.DB.prepare(
       `SELECT prompt_id, answer, feeling, context, note FROM check_ins WHERE id = ?`,
     )
@@ -202,17 +227,6 @@ export async function recordCheckIn(
     if (!isSameRequest) {
       throw new HTTPException(400, { message: "Idempotency key reused with a different request" });
     }
-  }
-
-  if (tags.length > 0) {
-    await env.DB.batch(
-      tags.map((tag) =>
-        env.DB.prepare("INSERT OR IGNORE INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(
-          id,
-          tag,
-        ),
-      ),
-    );
   }
 
   if (tags.length === 0) {
