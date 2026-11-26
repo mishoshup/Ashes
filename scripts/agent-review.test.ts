@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
 
-import { postCommentOrFail } from "./review/gate";
+import { escapeWorkflowCommand, postCommentOrFail, requireCommentCredentials } from "./review/gate";
 
 type Result = { code: number; stdout: string; stderr: string };
 
@@ -69,6 +69,34 @@ describe("agent review gate", () => {
     expect(result.stderr).toContain("empty diff");
   });
 
+  it("escapes workflow command data and requires comment credentials in CI", () => {
+    // Given a message containing command separators
+    // When it is escaped for a GitHub annotation
+    expect(escapeWorkflowCommand("a%\nb\r")).toBe("a%25%0Ab%0D");
+
+    // Then CI refuses to run without a comment target, while local runs may continue
+    expect(() => requireCommentCredentials({ ci: true })).toThrow();
+    expect(() => requireCommentCredentials({ ci: false })).not.toThrow();
+  });
+
+  it("does not fail locally when the diff is oversized", async () => {
+    // Given a diff over the review budget
+    // When the review runs locally
+    const result = await runWithDiff(
+      `diff --git a/apps/api/src/huge.ts b/apps/api/src/huge.ts
+--- a/apps/api/src/huge.ts
++++ b/apps/api/src/huge.ts
+@@ -1 +1 @@
++${"a".repeat(130_000)}
+`,
+      [],
+    );
+
+    // Then it reports the size without failing the command
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("diff is");
+  });
+
   it("fails when the review comment cannot be posted", async () => {
     // Given a GitHub comment write that fails
     const previousCode = process.exitCode;
@@ -94,12 +122,12 @@ describe("agent review gate", () => {
   });
 });
 
-async function runWithDiff(content: string): Promise<Result> {
+async function runWithDiff(content: string, args: string[] = ["--ci"]): Promise<Result> {
   const dir = mkdtempSync(join(tmpdir(), "ashes-review-"));
   const file = join(dir, "review.diff");
   writeFileSync(file, content);
   try {
-    return await run(["--ci"], {
+    return await run(args, {
       REVIEW_API_KEY: "test-key",
       REVIEW_MODEL: "test-model",
       REVIEW_DIFF_FILE: file,

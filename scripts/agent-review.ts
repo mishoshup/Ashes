@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { filterDiff } from "./review/diff";
-import { fail, postCommentOrFail } from "./review/gate";
+import { fail, postCommentOrFail, requireCommentCredentials } from "./review/gate";
 import { parseReviewJson } from "./review/parse";
 import { buildSystemPrompt, buildUserPrompt, loadRules } from "./review/prompt";
 import { reviewResultSchema } from "./review/schema";
@@ -177,6 +177,7 @@ function renderComment(
 
 async function postComment(env: Env, body: string): Promise<void> {
   if (!env.token || !env.repo || !env.pr) {
+    requireCommentCredentials(env);
     console.log("No GitHub token/repo/PR; printing review instead of posting.");
     console.log(body);
     return;
@@ -240,9 +241,12 @@ async function main(): Promise<void> {
     console.log(`Agent review: skipped ${filtered.removedFiles} lockfile/generated/asset file(s).`);
   }
   if (diff.length > MAX_DIFF_CHARS) {
-    fail(
-      `Agent review did not run: diff is ${diff.length} chars (max ${MAX_DIFF_CHARS}). Split the PR.`,
-    );
+    const message = `Agent review did not run: diff is ${diff.length} chars (max ${MAX_DIFF_CHARS}). Split the PR.`;
+    if (env.ci) {
+      fail(message);
+    } else {
+      console.log(message);
+    }
     return;
   }
 
