@@ -14,7 +14,7 @@
     "build": "bun --cwd=apps/api run build",
     "build:mobile": "bun --cwd=apps/mobile run export",
     "build:web": "bun --cwd=apps/mobile run export:web",
-    "test": "bun test --coverage packages",
+    "test": "bun test --coverage packages scripts",
     "test:worker": "bun --cwd=apps/api run test",
     "db:generate": "bun --cwd=apps/api run db:generate",
     "db:migrate:local": "bun --cwd=apps/api run db:migrate:local",
@@ -26,10 +26,10 @@
     "lint": "oxlint --type-aware --deny-warnings .",
     "lint:fix": "oxlint --type-aware --fix .",
     "format": "oxfmt --write apps/api packages .agent .github",
-    "format:check": "oxfmt --check apps/api packages .agent .github",
+    "format:check": "oxfmt --check apps/api packages scripts .agent .github",
     "arch": "bun scripts/architecture.ts",
     "verify": "bun scripts/verify.ts",
-    "review": "bun scripts/agent-review.ts",
+    "review": "bun run verify && bun scripts/agent-review.ts",
     "review:ci": "bun scripts/agent-review.ts --ci",
     "seed": "bun scripts/seed.ts",
     "e2e": "bun scripts/e2e.ts",
@@ -45,6 +45,7 @@
     "oxlint": "1.95.0",
     "oxlint-tsgolint": "7.0.2008",
     "sharp": "0.35.5",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "zod": "4.6.7"
   }
 }
