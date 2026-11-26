@@ -1,16 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
-import {
-  CtaLink,
-  ErrorState,
-  Loading,
-  Page,
-  SectionTitle,
-  TextLink,
-  TopBar,
-} from "@/components/ashes-ui";
+import { CtaLink, Page, SectionTitle, TextLink, TopBar } from "@/components/ashes-ui";
 import { CommunityCard, TopicCard } from "@/components/cards";
+import { ErrorState, Loading } from "@/components/feedback";
 import { palette, sans, serif } from "@/constants/ashes";
 import { communitiesQuery, topicsQuery } from "@/features/explore/queries";
 import { routes } from "@/libs/navigation/routes";

@@ -4,7 +4,8 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ErrorState, GuestNudge, Loading, NotFound, Page, TopBar } from "@/components/ashes-ui";
+import { Page, TopBar } from "@/components/ashes-ui";
+import { ErrorState, GuestNudge, Loading, NotFound } from "@/components/feedback";
 import { palette, sans, serif } from "@/constants/ashes";
 import { channelKindLabels } from "@/features/explore/labels";
 import { communitiesQuery } from "@/features/explore/queries";

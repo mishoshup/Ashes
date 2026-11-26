@@ -4,16 +4,8 @@ import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import {
-  Button,
-  CtaLink,
-  ErrorState,
-  GuestNudge,
-  Loading,
-  NotFound,
-  Page,
-  TopBar,
-} from "@/components/ashes-ui";
+import { Button, CtaLink, Page, TopBar } from "@/components/ashes-ui";
+import { ErrorState, GuestNudge, Loading, NotFound } from "@/components/feedback";
 import { palette, sans, serif } from "@/constants/ashes";
 import { triggerLabels } from "@/features/explore/labels";
 import { topicQuery } from "@/features/explore/queries";

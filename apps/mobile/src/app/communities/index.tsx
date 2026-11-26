@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { StyleSheet, Text, View } from "react-native";
 
-import { ErrorState, Loading, Page, TopBar } from "@/components/ashes-ui";
+import { Page, TopBar } from "@/components/ashes-ui";
 import { CommunityCard } from "@/components/cards";
+import { ErrorState, Loading } from "@/components/feedback";
 import { palette, sans, serif } from "@/constants/ashes";
 import { communitiesQuery } from "@/features/explore/queries";
 
