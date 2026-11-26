@@ -1,6 +1,8 @@
 import { triggerSchema, type CheckInInput, type PromptId, type Trigger } from "@ashes/contracts";
+import { HTTPException } from "hono/http-exception";
 import type { Env } from "../types";
 import { PATTERN_THRESHOLD, PROMPTS, promptFor, promptTags } from "../lib/prompts";
+import { hashRequest } from "./idempotency";
 
 export type CheckInTopicRow = {
   slug: string;
@@ -32,7 +34,7 @@ export async function topicByTrigger(env: Env, trigger: Trigger): Promise<CheckI
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      WHERE pt.trigger = ?`,
   )
     .bind(trigger)
@@ -45,7 +47,7 @@ export async function topicBySlug(env: Env, slug: string): Promise<CheckInTopicR
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      WHERE pt.slug = ?`,
   )
     .bind(slug)
@@ -66,7 +68,7 @@ export async function listTopics(env: Env) {
             c.slug AS community_slug
      FROM psych_topics pt
      LEFT JOIN channels ch ON ch.id = pt.channel_id AND ch.visibility = 'public'
-     LEFT JOIN communities c ON c.id = ch.community_id
+     LEFT JOIN communities c ON c.id = ch.community_id AND c.visibility = 'public'
      ORDER BY CASE pt.trigger
        WHEN 'stress' THEN 0 WHEN 'social' THEN 1 WHEN 'boredom' THEN 2
        WHEN 'routine' THEN 3 WHEN 'emotional' THEN 4 WHEN 'reward' THEN 5
@@ -146,13 +148,23 @@ export async function countTag(env: Env, userId: string, tag: Trigger): Promise<
   return row?.count ?? 0;
 }
 
-export async function recordCheckIn(env: Env, userId: string, input: CheckInInput, now: Date) {
+export async function recordCheckIn(
+  env: Env,
+  userId: string,
+  input: CheckInInput,
+  now: Date,
+  clientId?: string,
+) {
   const tags = [...new Set(promptTags(input.promptId, input.answer))];
-  const id = `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
+  const normalizedClientId = clientId?.trim() || undefined;
+  const id = normalizedClientId
+    ? `chk_${(await hashRequest({ userId, clientId: normalizedClientId })).slice(0, 22)}`
+    : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
   const statements = [
     env.DB.prepare(
-      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO check_ins (id, user_id, prompt_id, answer, feeling, context, note, client_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT DO NOTHING`,
     ).bind(
       id,
       userId,
@@ -161,13 +173,61 @@ export async function recordCheckIn(env: Env, userId: string, input: CheckInInpu
       input.feeling ?? null,
       input.context ?? null,
       input.note ?? null,
+      normalizedClientId ?? null,
       now.toISOString(),
     ),
     ...tags.map((tag) =>
-      env.DB.prepare("INSERT INTO check_in_tags (check_in_id, tag) VALUES (?, ?)").bind(id, tag),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO check_in_tags (check_in_id, tag)
+         SELECT ?, ?
+         WHERE EXISTS (
+           SELECT 1 FROM check_ins
+           WHERE id = ? AND prompt_id = ? AND answer = ?
+             AND COALESCE(feeling, '') = ?
+             AND COALESCE(context, '') = ?
+             AND COALESCE(note, '') = ?
+         )`,
+      ).bind(
+        id,
+        tag,
+        id,
+        input.promptId,
+        input.answer,
+        input.feeling ?? "",
+        input.context ?? "",
+        input.note ?? "",
+      ),
     ),
   ];
-  await env.DB.batch(statements);
+
+  const results = await env.DB.batch(statements);
+  const inserted = results[0]?.meta.changes ?? 0;
+
+  if (inserted === 0) {
+    const existing = await env.DB.prepare(
+      `SELECT prompt_id, answer, feeling, context, note FROM check_ins WHERE id = ?`,
+    )
+      .bind(id)
+      .first<{
+        prompt_id: string;
+        answer: string;
+        feeling: string | null;
+        context: string | null;
+        note: string | null;
+      }>();
+    if (!existing) {
+      throw new Error("Check-in conflict without a stored row");
+    }
+    const isSameRequest =
+      existing.prompt_id === input.promptId &&
+      existing.answer === input.answer &&
+      (existing.feeling ?? null) === (input.feeling ?? null) &&
+      (existing.context ?? null) === (input.context ?? null) &&
+      (existing.note ?? null) === (input.note ?? null);
+    if (!isSameRequest) {
+      throw new HTTPException(400, { message: "Idempotency key reused with a different request" });
+    }
+  }
 
   if (tags.length === 0) {
     return null;

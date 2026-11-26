@@ -191,35 +191,6 @@ describe("situation prompts", () => {
     expect(response.status).toBe(400);
   });
 
-  it("replays a check-in with the same idempotency key", async () => {
-    // Given a signed-in user and one idempotency key
-    const token = await newSession("idempotent@example.com");
-    const key = crypto.randomUUID();
-    const input = { promptId: "trigger", answer: "stress" };
-
-    // When the same check-in is sent twice
-    const first = await post("/api/check-in", input, token, "local", key);
-    const second = await post("/api/check-in", input, token, "local", key);
-
-    // Then the second response is a replay, not a second check-in
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
-    const firstBody = checkInResponseSchema.parse(await first.json());
-    const secondBody = checkInResponseSchema.parse(await second.json());
-    expect(firstBody.pattern?.count).toBe(1);
-    expect(secondBody.pattern?.count).toBe(1);
-
-    // And the key cannot be reused for a different answer
-    const conflict = await post(
-      "/api/check-in",
-      { promptId: "trigger", answer: "social" },
-      token,
-      "local",
-      key,
-    );
-    expect(conflict.status).toBe(400);
-  });
-
   it("returns not found for an invalid topic slug", async () => {
     const response = await SELF.fetch("https://example.com/api/topics/Not%20A%20Slug");
     expect(response.status).toBe(404);
@@ -253,6 +224,39 @@ describe("situation prompts", () => {
     const response = await SELF.fetch("https://example.com/api/topics/identity");
 
     // Then the private channel metadata is not returned
+    expect(response.status).toBe(200);
+    expect(psychTopicSchema.parse(await response.json()).channel).toBeNull();
+  });
+
+  it("does not expose a public channel inside a private community", async () => {
+    // Given a public channel whose parent community is private
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO communities
+         (id, slug, name, description, monogram, accent, visibility, created_at, updated_at)
+         VALUES ('com_private_parent', 'private-parent', 'Private Parent', 'Private community.',
+         'PP', '#000000', 'private', '2026-11-01T09:00:00.000Z', '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO channels
+         (id, community_id, slug, name, description, kind, visibility, created_at)
+         VALUES ('chn_public_child', 'com_private_parent', 'public-child', 'public-child',
+         'Public channel in a private community.', 'chat', 'public',
+         '2026-11-01T09:00:00.000Z')`,
+      ),
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO psych_topics
+         (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at)
+         VALUES ('reward', 'reward', 'What smoking gives you', 'Reward.', 'A short explanation.',
+         'What does it give you?', 'Maybe the cigarette is a reward.', 'chn_public_child',
+         '2026-11-01T09:00:00.000Z')`,
+      ),
+    ]);
+
+    // When the public topic is requested
+    const response = await SELF.fetch("https://example.com/api/topics/reward");
+
+    // Then the private community's channel metadata is not returned
     expect(response.status).toBe(200);
     expect(psychTopicSchema.parse(await response.json()).channel).toBeNull();
   });

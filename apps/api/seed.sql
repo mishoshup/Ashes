@@ -1,17 +1,25 @@
 -- Ashes seed: psychology communities, no user-created communities.
--- The old single-community seed is removed so local databases pick up the new model.
-DELETE FROM communities WHERE id = 'com_puff';
+-- Seed rows are upserted in place. Never REPLACE or DELETE a parent row: the FKs cascade
+-- and would remove real memberships, channels, posts, and messages.
 
-INSERT OR REPLACE INTO communities (id, slug, name, description, monogram, accent, visibility, created_at, updated_at) VALUES
+INSERT INTO communities (id, slug, name, description, monogram, accent, visibility, created_at, updated_at) VALUES
 ('com_pressure','pressure','Pressure','When smoking is how you cope with stress.','PR','#E2603A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
 ('com_idle','idle','Idle','When smoking fills empty time.','ID','#D9A441','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
 ('com_people','other-people','Other People','When smoking is social.','OP','#6E8B74','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
 ('com_feelings','feelings','Feelings','When smoking steps between you and a feeling.','FE','#7C6A9E','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
 ('com_cravings','cravings','Cravings','What a craving is made of.','CR','#B85C4A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
 ('com_quitting','quitting','Quitting','Learning from every attempt.','QU','#4F7C8A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
-('com_learning','learning-from-others','Learning From Others','Psychology, stories, and disagreement.','LO','#8A7A5C','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z');
+('com_learning','learning-from-others','Learning From Others','Psychology, stories, and disagreement.','LO','#8A7A5C','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z')
+ON CONFLICT(id) DO UPDATE SET
+  slug = excluded.slug,
+  name = excluded.name,
+  description = excluded.description,
+  monogram = excluded.monogram,
+  accent = excluded.accent,
+  visibility = excluded.visibility,
+  updated_at = excluded.updated_at;
 
-INSERT OR REPLACE INTO channels (id, community_id, slug, name, description, kind, visibility, created_at) VALUES
+INSERT INTO channels (id, community_id, slug, name, description, kind, visibility, created_at) VALUES
 ('chn_stress','com_pressure','stress-and-smoking','stress-and-smoking','What pressure does to the urge to smoke.','mixed','public','2026-11-01T09:00:00.000Z'),
 ('chn_pressure','com_pressure','work-and-pressure','work-and-pressure','Deadlines, managers, and the cigarette after.','mixed','public','2026-11-01T09:00:00.000Z'),
 ('chn_boredom','com_idle','boredom','boredom','Waiting, commuting, and empty hands.','mixed','public','2026-11-01T09:00:00.000Z'),
@@ -36,9 +44,16 @@ INSERT OR REPLACE INTO channels (id, community_id, slug, name, description, kind
 ('chn_perspectives','com_learning','different-perspectives','different-perspectives','Respectful disagreement about why people smoke.','forum','public','2026-11-01T09:00:00.000Z'),
 ('chn_ask','com_learning','ask-the-community','ask-the-community','Ask what you would rather not ask elsewhere.','forum','public','2026-11-01T09:00:00.000Z'),
 ('chn_worked','com_learning','what-worked-for-me','what-worked-for-me','Personal experience, not universal advice.','forum','public','2026-11-01T09:00:00.000Z'),
-('chn_support','com_learning','supporting-each-other','supporting-each-other','Experience-based support.','chat','public','2026-11-01T09:00:00.000Z');
+('chn_support','com_learning','supporting-each-other','supporting-each-other','Experience-based support.','chat','public','2026-11-01T09:00:00.000Z')
+ON CONFLICT(id) DO UPDATE SET
+  community_id = excluded.community_id,
+  slug = excluded.slug,
+  name = excluded.name,
+  description = excluded.description,
+  kind = excluded.kind,
+  visibility = excluded.visibility;
 
-INSERT OR REPLACE INTO psych_topics (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at) VALUES
+INSERT INTO psych_topics (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at) VALUES
 ('stress','stress','Smoking when you''re stressed','Pressure and the cigarette can become tangled together.','Stress is not just a feeling in your head. It changes your breathing, your attention, and what feels available in the moment. Smoking may become one of the few things that feels like a pause. That does not mean the cigarette is the only pause available. It means the pause matters.','What usually happens just before you reach for a cigarette?','Maybe smoking has become your way of coping with pressure.','chn_stress','2026-11-01T09:00:00.000Z'),
 ('social','social','Smoking around other people','The people around you shape when smoking feels normal.','You may smoke less alone than you think. A group, a shared break, a reason to stand outside: smoking can do social work before nicotine does anything. Noticing who you are with may explain more than noticing how much you smoke.','Do you smoke more when you''re alone or around other people?','Maybe smoking is doing some of the social work for you.','chn_social','2026-11-01T09:00:00.000Z'),
 ('boredom','boredom','Smoking when there''s nothing to do','Empty moments can become smoking moments.','Waiting, commuting, finishing a task, having nothing to do with your hands: smoking can fill a gap before you have decided you want one. Boredom is not empty. It is a cue looking for something to attach to.','What are you usually waiting for when you reach for a cigarette?','Maybe it is less about the cigarette and more about filling an empty moment.','chn_routines','2026-11-01T09:00:00.000Z'),
@@ -47,4 +62,12 @@ INSERT OR REPLACE INTO psych_topics (slug, trigger, title, summary, body, reflec
 ('reward','reward','What smoking feels like it gives you','The first drag can feel like a reward.','A cigarette can feel earned: after a task, after a difficult conversation, after holding it together. The reward may be real even when the cigarette is not the only way to get it. This is about understanding what the reward means to you.','What do you believe smoking gives you?','Maybe the cigarette is a small reward you feel you have earned.','chn_why','2026-11-01T09:00:00.000Z'),
 ('identity','identity','Smoking and identity','Smoking can become part of how you describe yourself.','The smoker who takes breaks, the one who stands outside, the person with a lighter: these can become small identities. You do not have to decide whether that identity is good or bad to notice that it exists.','Does smoking feel like part of who you are?','Maybe smoking still feels like part of how you see yourself.','chn_story','2026-11-01T09:00:00.000Z'),
 ('avoidance','avoidance','Smoking to step away','A cigarette can be permission to leave.','Leaving a conversation, a room, a task, a feeling: smoking can create a legitimate pause. The pause may be the point. If so, the question is not only why you smoke, but what you are stepping away from.','What are you stepping away from?','Maybe the cigarette gives you permission to leave a situation.','chn_personal','2026-11-01T09:00:00.000Z'),
-('cravings','cravings','What a craving actually feels like','A craving is a wave with a shape.','Cravings have a before, a middle and an after. They can be tied to a time, a place, a person or a feeling. You do not have to fight a craving to study it. Noticing its shape is already a different relationship with it.','What happens before, during and after a craving?','Maybe the craving is about the pause, not the cigarette.','chn_cravings','2026-11-01T09:00:00.000Z');
+('cravings','cravings','What a craving actually feels like','A craving is a wave with a shape.','Cravings have a before, a middle and an after. They can be tied to a time, a place, a person or a feeling. You do not have to fight a craving to study it. Noticing its shape is already a different relationship with it.','What happens before, during and after a craving?','Maybe the craving is about the pause, not the cigarette.','chn_cravings','2026-11-01T09:00:00.000Z')
+ON CONFLICT(slug) DO UPDATE SET
+  trigger = excluded.trigger,
+  title = excluded.title,
+  summary = excluded.summary,
+  body = excluded.body,
+  reflection_prompt = excluded.reflection_prompt,
+  insight_body = excluded.insight_body,
+  channel_id = excluded.channel_id;
