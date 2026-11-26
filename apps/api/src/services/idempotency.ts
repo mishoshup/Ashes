@@ -46,6 +46,7 @@ export async function withIdempotency<T>(
   now: Date,
   run: () => Promise<T>,
   persist?: (value: T) => unknown,
+  onReplay?: (stored: T) => Promise<T> | T,
 ): Promise<T> {
   if (!key) {
     return run();
@@ -122,7 +123,8 @@ export async function withIdempotency<T>(
       throw new HTTPException(400, { message: "Idempotency key reused with a different request" });
     }
     const parsed: unknown = JSON.parse(existing.response_json);
-    return schema.parse(parsed);
+    const stored = schema.parse(parsed);
+    return onReplay ? onReplay(stored) : stored;
   }
 
   throw new HTTPException(409, { message: "Request in progress. Try again in a moment." });

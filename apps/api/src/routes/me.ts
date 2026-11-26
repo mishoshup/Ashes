@@ -72,6 +72,13 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
       }
       return { revoked };
     },
+    undefined,
+    (stored) => {
+      if (!parsed.data.shouldKeepCurrent) {
+        clearSessionCookie(c, c.env);
+      }
+      return stored;
+    },
   );
   noStore(c);
   return c.json(response);
@@ -104,6 +111,13 @@ meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
         clearSessionCookie(c, c.env);
       }
       return { ok: true as const };
+    },
+    undefined,
+    (stored) => {
+      if (c.get("sessionId") === parsed.data) {
+        clearSessionCookie(c, c.env);
+      }
+      return stored;
     },
   );
   noStore(c);

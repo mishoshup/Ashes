@@ -335,7 +335,7 @@ describe("sessions", () => {
     expect(blocked.headers.get("retry-after")).toBe("60");
   });
 
-  it("replays a password change without rotating again", async () => {
+  it("replays a password change with a fresh session", async () => {
     // Given a session and an idempotent password change
     const first = await mobileSession("idempotent-password@example.com");
     const key = crypto.randomUUID();
@@ -363,17 +363,19 @@ describe("sessions", () => {
     expect(replay.status).toBe(200);
     const replayBody = setPasswordResponseSchema.parse(await replay.json());
 
-    // Then the response is replayed without another rotation
-    expect(replayBody.token).toBeUndefined();
-    expect((await me(initialBody.token)).status).toBe(200);
-    expect((await me(first)).status).toBe(401);
+    // Then the replay issues a fresh session and keeps the caller signed in
+    if (!replayBody.token) {
+      throw new Error("expected a replayed session token");
+    }
+    expect((await me(initialBody.token)).status).toBe(401);
+    expect((await me(replayBody.token)).status).toBe(200);
 
     // And the same key with a different password is rejected
     const conflict = await SELF.fetch("https://example.com/api/auth/password", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${initialBody.token}`,
+        Authorization: `Bearer ${replayBody.token}`,
         "Idempotency-Key": key,
       },
       body: JSON.stringify({

@@ -16,9 +16,15 @@ import { hashPassword, verifyPassword } from "../services/password";
 import { checkRateLimit } from "../lib/rate-limit";
 import { hashRequest, withIdempotency } from "../services/idempotency";
 import { clearSessionCookie, readSessionCookie, setSessionCookie } from "../lib/session-cookie";
-import { revokeSession, rotateSession, sessionMetaFromRequest } from "../services/sessions";
+import {
+  revokeAllSessions,
+  revokeSession,
+  rotateSession,
+  sessionMetaFromRequest,
+} from "../services/sessions";
 import {
   createLoginToken,
+  createSession,
   finalizeLoginToken,
   findLoginRequest,
   findOrCreateUser,
@@ -239,6 +245,15 @@ authRoutes.post("/password", requireAuth, async (c) => {
       return setPasswordResponseSchema.parse({ ok: true, token });
     },
     () => ({ ok: true }),
+    async () => {
+      const token = await createSession(c.env, user.id, now, await sessionMetaFromRequest(c));
+      await revokeAllSessions(c.env, user.id, token, true, now);
+      if (c.get("authKind") === "cookie") {
+        setSessionCookie(c, token, c.env);
+        return setPasswordResponseSchema.parse({ ok: true });
+      }
+      return setPasswordResponseSchema.parse({ ok: true, token });
+    },
   );
   noStore(c);
   return c.json(response);
