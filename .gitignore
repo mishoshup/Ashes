@@ -1,0 +1,50 @@
+# dependencies
+node_modules/
+.pnp/
+
+# build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# cloudflare
+.dev.vars
+.wrangler/
+apps/api/dist/
+
+# expo / native
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/dist/
+apps/mobile/web-build/
+.expo/
+
+# local data & uploads
+apps/api/data/
+apps/api/uploads/
+*.db
+*.db-shm
+*.db-wal
+
+# tooling caches
+.cache/
+.tools/
+.gradle/
+.maestro/
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/build/
+.impeccable/design.json
+
+# secrets & local env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.log

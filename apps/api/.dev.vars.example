@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local Workers secrets. Never commit .dev.vars.
+RESEND_API_KEY=
+SESSION_PEPPER=
+TURNSTILE_SECRET=

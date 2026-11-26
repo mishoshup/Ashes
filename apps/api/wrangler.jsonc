@@ -1,0 +1,53 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ashes-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-26",
+  "observability": {
+    "enabled": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ashes-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "ashes-media",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOM",
+        "class_name": "RoomDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RoomDurableObject"],
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "JOBS",
+        "queue": "ashes-jobs",
+      },
+    ],
+  },
+  "triggers": {
+    "crons": ["0 8 * * *"],
+  },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "WEB_ORIGIN": "http://localhost:8081",
+    "APP_ORIGIN": "http://localhost:8081",
+  },
+}

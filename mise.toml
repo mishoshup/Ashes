@@ -1,0 +1,52 @@
+[tools]
+bun = "1.4.4"
+node = "24.21.0"
+java = "temurin-17.0.21+9"
+
+[env]
+EXPO_NO_TELEMETRY = "1"
+DO_NOT_TRACK = "1"
+ANDROID_HOME = "{{config_root}}/.tools/android-sdk"
+ANDROID_SDK_ROOT = "{{config_root}}/.tools/android-sdk"
+GRADLE_USER_HOME = "{{config_root}}/.cache/gradle"
+_.path = [
+  "{{config_root}}/node_modules/.bin",
+  "{{config_root}}/.tools/android-sdk/platform-tools",
+  "{{config_root}}/.tools/android-sdk/cmdline-tools/latest/bin",
+]
+
+[tasks.setup]
+description = "Install Bun dependencies and seed the local database"
+run = "bun install && bun run seed"
+
+[tasks.dev]
+description = "Run the API and Expo dev server together"
+run = "bun run dev"
+
+[tasks.verify]
+description = "Run the full deterministic quality gate"
+run = "bun run verify"
+
+[tasks.review]
+description = "Run deterministic gates, then the agent reviewer"
+run = "bun run review"
+
+[tasks.seed]
+description = "Reset and seed the local SQLite database"
+run = "bun run seed"
+
+[tasks."assets:generate"]
+description = "Regenerate app icons, splash art and editorial covers"
+run = "bun run assets"
+
+[tasks."setup:android"]
+description = "Install a project-local Android SDK for local EAS builds"
+run = "bash scripts/setup-android.sh"
+
+[tasks."build:android"]
+description = "Local EAS build of the Android preview APK"
+run = "bun run build:android:local"
+
+[tasks."build:ios"]
+description = "Local EAS build of the iOS simulator app"
+run = "bun run build:ios:local"

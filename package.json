@@ -1,0 +1,50 @@
+{
+  "name": "ashes",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "bun scripts/dev.ts",
+    "dev:api": "bun --cwd=apps/api run dev",
+    "dev:mobile": "bun --cwd=apps/mobile run start",
+    "build": "bun --cwd=apps/api run build",
+    "build:mobile": "bun --cwd=apps/mobile run export",
+    "build:web": "bun --cwd=apps/mobile run export:web",
+    "test": "bun test --coverage packages",
+    "test:worker": "bun --cwd=apps/api run test",
+    "db:generate": "bun --cwd=apps/api run db:generate",
+    "db:migrate:local": "bun --cwd=apps/api run db:migrate:local",
+    "db:migrate:remote": "bun --cwd=apps/api run db:migrate:remote",
+    "deploy:api": "bun --cwd=apps/api run deploy",
+    "deploy:web": "bun --cwd=apps/mobile run export:web && bunx wrangler pages deploy apps/mobile/dist --project-name ashes-web",
+    "test:watch": "bun test --watch",
+    "typecheck": "bun run --filter '*' typecheck && tsc -p tsconfig.scripts.json --noEmit",
+    "lint": "oxlint --type-aware --deny-warnings .",
+    "lint:fix": "oxlint --type-aware --fix .",
+    "format": "oxfmt --write apps/api packages .agent .github",
+    "format:check": "oxfmt --check apps/api packages .agent .github",
+    "arch": "bun scripts/architecture.ts",
+    "verify": "bun scripts/verify.ts",
+    "review": "bun scripts/agent-review.ts",
+    "review:ci": "bun scripts/agent-review.ts --ci",
+    "seed": "bun scripts/seed.ts",
+    "e2e": "bun scripts/e2e.ts",
+    "assets": "bun scripts/generate-assets.ts",
+    "doctor": "bun scripts/doctor.ts",
+    "build:android:local": "bun --cwd=apps/mobile run build:android:local",
+    "build:ios:local": "bun --cwd=apps/mobile run build:ios:local",
+    "docker:api": "docker build -f apps/api/Dockerfile -t ashes-api ."
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.5",
+    "oxfmt": "0.80.0",
+    "oxlint": "1.95.0",
+    "oxlint-tsgolint": "7.0.2008",
+    "sharp": "0.35.5",
+    "typescript": "6.0.3"
+  }
+}
