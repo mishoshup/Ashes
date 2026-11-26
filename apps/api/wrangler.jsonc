@@ -45,6 +45,9 @@
   "triggers": {
     "crons": ["0 8 * * *"],
   },
+  "secrets": {
+    "required": ["PASSWORD_PEPPER"],
+  },
   "vars": {
     "ENVIRONMENT": "development",
     "WEB_ORIGIN": "http://localhost:8081",

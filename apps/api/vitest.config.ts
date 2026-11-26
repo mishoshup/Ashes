@@ -11,7 +11,7 @@ export default defineConfig({
         bindings: {
           TEST_MIGRATIONS: migrations,
           ALLOW_DEV_AUTH_TOKEN: "true",
-          PASSWORD_PEPPER: "test-pepper",
+          PASSWORD_PEPPER: "test-pepper-32-characters-long!!!",
         },
       },
     }),

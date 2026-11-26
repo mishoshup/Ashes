@@ -23,12 +23,19 @@ import {
   revokeSession,
   setPasswordAndRevokeOthers,
 } from "../services/users";
-import type { AppEnv } from "../types";
+import type { AppEnv, Env } from "../types";
 
 export const authRoutes = new Hono<AppEnv>();
 
 function badRequest(message: string): never {
   throw new HTTPException(400, { message });
+}
+
+function requirePasswordPepper(env: Env): string {
+  if (!env.PASSWORD_PEPPER || env.PASSWORD_PEPPER.length < 32) {
+    throw new HTTPException(503, { message: "Password login is unavailable" });
+  }
+  return env.PASSWORD_PEPPER;
 }
 
 authRoutes.post("/magic-link", async (c) => {
@@ -124,7 +131,8 @@ authRoutes.post("/login", async (c) => {
     c.header("Retry-After", "60");
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
   }
-  const result = await loginWithPassword(c.env, email, parsed.data.password, new Date());
+  const pepper = requirePasswordPepper(c.env);
+  const result = await loginWithPassword(c.env, email, parsed.data.password, new Date(), pepper);
   if (!result) {
     throw new HTTPException(401, { message: "Email or password is incorrect" });
   }
@@ -148,16 +156,13 @@ authRoutes.post("/password", requireAuth, async (c) => {
     c.header("Retry-After", "60");
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
   }
+  const pepper = requirePasswordPepper(c.env);
   const current = await findPasswordHash(c.env, user.id);
   if (current) {
     if (!parsed.data.currentPassword) {
       badRequest("Enter your current password");
     }
-    const valid = await verifyPassword(
-      parsed.data.currentPassword,
-      current,
-      c.env.PASSWORD_PEPPER ?? "",
-    );
+    const valid = await verifyPassword(parsed.data.currentPassword, current, pepper);
     if (!valid) {
       badRequest("Current password is incorrect");
     }
@@ -166,7 +171,7 @@ authRoutes.post("/password", requireAuth, async (c) => {
   await setPasswordAndRevokeOthers(
     c.env,
     user.id,
-    await hashPassword(parsed.data.password, c.env.PASSWORD_PEPPER ?? ""),
+    await hashPassword(parsed.data.password, pepper),
     c.get("sessionToken"),
     now,
   );
