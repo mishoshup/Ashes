@@ -153,7 +153,11 @@ authRoutes.post("/password", requireAuth, async (c) => {
     if (!parsed.data.currentPassword) {
       badRequest("Enter your current password");
     }
-    const valid = await verifyPassword(parsed.data.currentPassword, current);
+    const valid = await verifyPassword(
+      parsed.data.currentPassword,
+      current,
+      c.env.PASSWORD_PEPPER ?? "",
+    );
     if (!valid) {
       badRequest("Current password is incorrect");
     }
@@ -162,7 +166,7 @@ authRoutes.post("/password", requireAuth, async (c) => {
   await setPasswordAndRevokeOthers(
     c.env,
     user.id,
-    await hashPassword(parsed.data.password),
+    await hashPassword(parsed.data.password, c.env.PASSWORD_PEPPER ?? ""),
     c.get("sessionToken"),
     now,
   );

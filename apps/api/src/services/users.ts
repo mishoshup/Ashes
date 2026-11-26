@@ -241,10 +241,10 @@ export async function loginWithPassword(
 ): Promise<{ user: AuthUser; token: string } | null> {
   const row = await findUserByEmail(env, email);
   if (!row?.password_hash) {
-    await burnPassword(password);
+    await burnPassword(password, env.PASSWORD_PEPPER ?? "");
     return null;
   }
-  const valid = await verifyPassword(password, row.password_hash);
+  const valid = await verifyPassword(password, row.password_hash, env.PASSWORD_PEPPER ?? "");
   if (!valid) {
     return null;
   }

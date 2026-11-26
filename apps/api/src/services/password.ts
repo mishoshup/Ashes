@@ -1,72 +1,59 @@
-import { argon2idAsync } from "@noble/hashes/argon2.js";
-import { base64StandardDecode, base64StandardEncode } from "../lib/crypto";
+import Argon2, { Argon2Type, Argon2Version } from "@phi-ag/argon2";
+import wasm from "@phi-ag/argon2/argon2.wasm";
 
-const PARAMS = { t: 2, m: 19_456, p: 1, dkLen: 32 };
-const MAX_MEMORY = 64 * 1024 * 1024;
-const PHC_PATTERN =
-  /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/u;
+const PARAMS = { memoryCost: 19_456, timeCost: 2, hashLength: 32, parallelism: 1 };
+const encoder = new TextEncoder();
 
-function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= (left[index] ?? 0) ^ (right[index] ?? 0);
-  }
-  return difference === 0;
+let instance: Promise<Argon2> | undefined;
+
+export function getArgon2(): Promise<Argon2> {
+  instance ??= WebAssembly.instantiate(wasm).then((module) => new Argon2(module));
+  return instance;
 }
 
-async function derive(password: string, salt: Uint8Array, options: typeof PARAMS) {
-  return argon2idAsync(new TextEncoder().encode(password), salt, {
-    ...options,
-    maxmem: MAX_MEMORY,
-    asyncTick: 10,
-  });
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const hash = await derive(password, salt, PARAMS);
-  return `$argon2id$v=19$m=${PARAMS.m},t=${PARAMS.t},p=${PARAMS.p}$${base64StandardEncode(salt)}$${base64StandardEncode(hash)}`;
-}
-
-export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
-  const match = PHC_PATTERN.exec(encoded);
-  if (!match) {
-    return false;
+/**
+ * Mix the server-side pepper into the password with HMAC-SHA256.
+ * This is the same scheme used by the reference sillyusachi API.
+ */
+async function applyPepper(pepper: string, password: string): Promise<string> {
+  if (!pepper) {
+    return password;
   }
-  const memory = Number(match[1]);
-  const iterations = Number(match[2]);
-  const parallelism = Number(match[3]);
-  const salt = base64StandardDecode(match[4] ?? "");
-  const expected = base64StandardDecode(match[5] ?? "");
-  if (
-    !salt ||
-    !expected ||
-    !Number.isInteger(memory) ||
-    !Number.isInteger(iterations) ||
-    !Number.isInteger(parallelism) ||
-    memory < 8 ||
-    memory > 65_536 ||
-    iterations < 1 ||
-    iterations > 10 ||
-    parallelism < 1 ||
-    parallelism > 4
-  ) {
-    return false;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(pepper),
+    { hash: "SHA-256", name: "HMAC" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(password));
+  const bytes = new Uint8Array(signature);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
   }
-  const actual = await derive(password, salt, {
-    t: iterations,
-    m: memory,
-    p: parallelism,
-    dkLen: expected.length,
-  });
-  return constantTimeEqual(actual, expected);
+  return btoa(binary);
 }
 
-export async function burnPassword(password: string): Promise<void> {
-  const salt = new Uint8Array(16);
-  salt.fill(1);
-  await derive(password, salt, PARAMS);
+export async function hashPassword(password: string, pepper = ""): Promise<string> {
+  const argon2 = await getArgon2();
+  return argon2.hash(await applyPepper(pepper, password), {
+    ...PARAMS,
+    type: Argon2Type.Argon2id,
+    version: Argon2Version.Version13,
+  }).encoded;
+}
+
+export async function verifyPassword(
+  password: string,
+  encoded: string,
+  pepper = "",
+): Promise<boolean> {
+  const argon2 = await getArgon2();
+  return argon2.tryVerify(encoded, await applyPepper(pepper, password), Argon2Type.Argon2id)
+    .success;
+}
+
+export async function burnPassword(password: string, pepper = ""): Promise<void> {
+  await hashPassword(`${password}:${crypto.randomUUID()}`, pepper);
 }
