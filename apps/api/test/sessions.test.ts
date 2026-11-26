@@ -137,6 +137,32 @@ describe("sessions", () => {
     expect((await me(undefined, cookie)).status).toBe(401);
   });
 
+  it("clears an expired web cookie on logout", async () => {
+    // Given a web session that has expired server-side
+    const cookie = await webCookie("expired-logout@example.com");
+    await env.DB.prepare(
+      "UPDATE sessions SET expires_at = ? WHERE user_id = (SELECT id FROM users WHERE email = ?)",
+    )
+      .bind("2020-01-01T00:00:00.000Z", "expired-logout@example.com")
+      .run();
+
+    // When the browser logs out
+    const response = await SELF.fetch("https://example.com/api/auth/logout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookie,
+        Origin: "http://localhost:8081",
+      },
+      body: "{}",
+    });
+
+    // Then logout succeeds and clears the cookie even though the session is invalid
+    expect(response.status).toBe(204);
+    expect(response.headers.get("set-cookie")).toContain("ashes_session=");
+    expect((await me(undefined, cookie)).status).toBe(401);
+  });
+
   it("lists sessions, revokes one, and leaves the other active", async () => {
     // Given two mobile sessions
     const first = await mobileSession("two-devices@example.com");

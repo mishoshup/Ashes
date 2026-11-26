@@ -10,11 +10,11 @@ import {
 } from "@ashes/contracts";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import { requireAuth } from "../middleware/auth";
+import { bearerToken, requireAuth } from "../middleware/auth";
 import { sendMagicLink, verifyTurnstile } from "../services/email";
 import { hashPassword, verifyPassword } from "../services/password";
 import { checkRateLimit } from "../lib/rate-limit";
-import { clearSessionCookie, setSessionCookie } from "../lib/session-cookie";
+import { clearSessionCookie, readSessionCookie, setSessionCookie } from "../lib/session-cookie";
 import { revokeSession, rotateSession, sessionMetaFromRequest } from "../services/sessions";
 import {
   createLoginToken,
@@ -231,8 +231,11 @@ authRoutes.post("/password", requireAuth, async (c) => {
   return c.json(setPasswordResponseSchema.parse({ ok: true, token }));
 });
 
-authRoutes.post("/logout", requireAuth, async (c) => {
-  await revokeSession(c.env, c.get("sessionToken"), "logout", new Date());
+authRoutes.post("/logout", async (c) => {
+  const token = bearerToken(c.req.header("Authorization")) ?? readSessionCookie(c);
+  if (token) {
+    await revokeSession(c.env, token, "logout", new Date());
+  }
   clearSessionCookie(c, c.env);
   noStore(c);
   return c.body(null, 204);
