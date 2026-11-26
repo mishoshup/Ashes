@@ -70,7 +70,7 @@ export const sessionSummarySchema = z.object({
   lastSeenAt: z.iso.datetime(),
   expiresAt: z.iso.datetime(),
   userAgent: z.string().nullable(),
-  current: z.boolean(),
+  isCurrent: z.boolean(),
 });
 export type SessionSummary = z.infer<typeof sessionSummarySchema>;
 
@@ -80,7 +80,7 @@ export const sessionsResponseSchema = z.object({
 export type SessionsResponse = z.infer<typeof sessionsResponseSchema>;
 
 export const revokeAllSessionsInputSchema = z.object({
-  keepCurrent: z.boolean().default(true),
+  shouldKeepCurrent: z.boolean().default(true),
 });
 export type RevokeAllSessionsInput = z.infer<typeof revokeAllSessionsInputSchema>;
 

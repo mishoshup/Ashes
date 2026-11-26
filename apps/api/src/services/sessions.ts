@@ -26,6 +26,7 @@ export type AuthenticatedSession = {
 };
 
 const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000;
+const REUSE_GRACE_MS = 60 * 1000;
 
 export async function sessionMetaFromRequest(c: Context<AppEnv>): Promise<SessionMeta> {
   const userAgent = c.req.header("User-Agent")?.slice(0, 200) ?? null;
@@ -51,7 +52,12 @@ export async function findSession(
   }
   if (session.revoked_at) {
     if (session.revoked_reason === "rotated" && session.id) {
-      await revokeReplacementChain(env, session.id, now);
+      const rotatedAt = Date.parse(session.revoked_at);
+      const isOutsideGrace =
+        !Number.isFinite(rotatedAt) || now.getTime() - rotatedAt > REUSE_GRACE_MS;
+      if (isOutsideGrace) {
+        await revokeReplacementChain(env, session.id, now);
+      }
     }
     return null;
   }
@@ -135,7 +141,7 @@ export async function listSessions(
     lastSeenAt: row.last_seen_at,
     expiresAt: row.expires_at,
     userAgent: row.user_agent,
-    current: row.token_hash === currentHash,
+    isCurrent: row.token_hash === currentHash,
   }));
 }
 
@@ -158,11 +164,11 @@ export async function revokeAllSessions(
   env: Env,
   userId: string,
   currentToken: string,
-  keepCurrent: boolean,
+  shouldKeepCurrent: boolean,
   now: Date,
 ): Promise<number> {
   const currentHash = await sessionTokenHash(env, currentToken);
-  const result = keepCurrent
+  const result = shouldKeepCurrent
     ? await env.DB.prepare(
         `UPDATE sessions SET revoked_at = ?, revoked_reason = 'revoke_all'
          WHERE user_id = ? AND token_hash != ? AND revoked_at IS NULL`,

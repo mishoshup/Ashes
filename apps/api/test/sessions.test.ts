@@ -5,7 +5,7 @@ import {
   setPasswordResponseSchema,
   webAuthSessionResponseSchema,
 } from "@ashes/contracts";
-import { SELF } from "cloudflare:test";
+import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
 async function post(path: string, body: unknown, token?: string, ip = `ip-${crypto.randomUUID()}`) {
@@ -146,11 +146,11 @@ describe("sessions", () => {
     });
     const body = sessionsResponseSchema.parse(await list.json());
     expect(body.items).toHaveLength(2);
-    expect(body.items.filter((item) => item.current)).toHaveLength(1);
+    expect(body.items.filter((item) => item.isCurrent)).toHaveLength(1);
     expect(JSON.stringify(body)).not.toContain("token");
 
     // And revokes the non-current session
-    const other = body.items.find((item) => !item.current);
+    const other = body.items.find((item) => !item.isCurrent);
     if (!other) {
       throw new Error("missing non-current session");
     }
@@ -177,7 +177,7 @@ describe("sessions", () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${first}`,
       },
-      body: JSON.stringify({ keepCurrent: true }),
+      body: JSON.stringify({ shouldKeepCurrent: true }),
     });
     expect(response.status).toBe(200);
 
@@ -198,7 +198,7 @@ describe("sessions", () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${first}`,
       },
-      body: JSON.stringify({ keepCurrent: false }),
+      body: JSON.stringify({ shouldKeepCurrent: false }),
     });
     expect(response.status).toBe(200);
 
@@ -259,7 +259,7 @@ describe("sessions", () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ keepCurrent: true }),
+        body: JSON.stringify({ shouldKeepCurrent: true }),
       });
 
     // When the endpoint is called past its allowance
@@ -274,7 +274,7 @@ describe("sessions", () => {
     expect(blocked.headers.get("retry-after")).toBe("60");
   });
 
-  it("rotates on password change and revokes the replacement on token reuse", async () => {
+  it("rotates on password change, allows in-flight requests, then detects reuse", async () => {
     // Given a mobile session
     const first = await mobileSession("rotation@example.com");
 
@@ -290,7 +290,24 @@ describe("sessions", () => {
       throw new Error("expected a rotated token");
     }
 
-    // Then the old token is rejected and reuse revokes the replacement
+    // Then an in-flight old-token request is rejected but does not kill the replacement
+    expect((await me(first)).status).toBe(401);
+    expect((await me(body.token)).status).toBe(200);
+
+    // When the rotation is older than the reuse grace window
+    const user = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+      .bind("rotation@example.com")
+      .first<{ id: string }>();
+    if (!user) {
+      throw new Error("missing rotation user");
+    }
+    await env.DB.prepare(
+      "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_reason = 'rotated'",
+    )
+      .bind("2020-01-01T00:00:00.000Z", user.id)
+      .run();
+
+    // Then presenting the old token revokes the replacement chain
     expect((await me(first)).status).toBe(401);
     expect((await me(body.token)).status).toBe(401);
   });

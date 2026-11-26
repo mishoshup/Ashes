@@ -53,10 +53,10 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
     c.env,
     user.id,
     c.get("sessionToken"),
-    parsed.data.keepCurrent,
+    parsed.data.shouldKeepCurrent,
     new Date(),
   );
-  if (!parsed.data.keepCurrent) {
+  if (!parsed.data.shouldKeepCurrent) {
     clearSessionCookie(c, c.env);
   }
   noStore(c);
