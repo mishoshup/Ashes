@@ -8,6 +8,7 @@ export type Env = CloudflareBindings & {
   RESEND_API_KEY?: string;
   SESSION_PEPPER?: string;
   ALLOW_DEV_AUTH_TOKEN?: string;
+  PASSWORD_PEPPER?: string;
   TURNSTILE_SECRET?: string;
 };
 

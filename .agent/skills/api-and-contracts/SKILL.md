@@ -47,7 +47,7 @@ API-10: Every route has a Vitest Workers test with Miniflare D1/R2/DO.
 - `POST /api/auth/verify` consumes the token atomically, creates the user if new, creates a session token (32 bytes, SHA-256 hash in D1, 30-day expiry), returns the raw token once.
 - `POST /api/auth/logout` revokes the current session; `POST /api/auth/logout-all` revokes all.
 - Bearer token only. Never put tokens in URLs, logs, query cache, or AsyncStorage.
-- Optional password step-up: set a password only from a verified magic-link session. Use Argon2id via `@noble/hashes` (m=19456 KiB, t=2, p=1); store a PHC string; require the current password to change it; revoke other sessions. Workers Paid is required for CPU.
+- Optional password step-up: set a password only from a verified magic-link session. Use Argon2id via `@phi-ag/argon2` WASM SIMD (m=19456 KiB, t=2, p=1) with a required 32+ character HMAC pepper; store a PHC string; require the current password to change it; revoke other sessions.
 
 ## D1 + Drizzle
 

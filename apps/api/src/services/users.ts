@@ -238,13 +238,14 @@ export async function loginWithPassword(
   email: string,
   password: string,
   now: Date,
+  pepper: string,
 ): Promise<{ user: AuthUser; token: string } | null> {
   const row = await findUserByEmail(env, email);
   if (!row?.password_hash) {
-    await burnPassword(password);
+    await burnPassword(password, pepper);
     return null;
   }
-  const valid = await verifyPassword(password, row.password_hash);
+  const valid = await verifyPassword(password, row.password_hash, pepper);
   if (!valid) {
     return null;
   }
