@@ -1,10 +1,10 @@
 import { argon2idAsync } from "@noble/hashes/argon2.js";
-import { base64UrlDecode, base64UrlEncode } from "../lib/crypto";
+import { base64StandardDecode, base64StandardEncode } from "../lib/crypto";
 
 const PARAMS = { t: 2, m: 19_456, p: 1, dkLen: 32 };
 const MAX_MEMORY = 64 * 1024 * 1024;
 const PHC_PATTERN =
-  /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9_-]+)\$([A-Za-z0-9_-]+)$/u;
+  /^\$argon2id\$v=19\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/u;
 
 function constantTimeEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) {
@@ -28,7 +28,7 @@ async function derive(password: string, salt: Uint8Array, options: typeof PARAMS
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await derive(password, salt, PARAMS);
-  return `$argon2id$v=19$m=${PARAMS.m},t=${PARAMS.t},p=${PARAMS.p}$${base64UrlEncode(salt)}$${base64UrlEncode(hash)}`;
+  return `$argon2id$v=19$m=${PARAMS.m},t=${PARAMS.t},p=${PARAMS.p}$${base64StandardEncode(salt)}$${base64StandardEncode(hash)}`;
 }
 
 export async function verifyPassword(password: string, encoded: string): Promise<boolean> {
@@ -39,8 +39,8 @@ export async function verifyPassword(password: string, encoded: string): Promise
   const memory = Number(match[1]);
   const iterations = Number(match[2]);
   const parallelism = Number(match[3]);
-  const salt = base64UrlDecode(match[4] ?? "");
-  const expected = base64UrlDecode(match[5] ?? "");
+  const salt = base64StandardDecode(match[4] ?? "");
+  const expected = base64StandardDecode(match[5] ?? "");
   if (
     !salt ||
     !expected ||

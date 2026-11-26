@@ -213,28 +213,24 @@ export async function findPasswordHash(env: Env, userId: string): Promise<string
   return row?.password_hash ?? null;
 }
 
-export async function setPasswordHash(
+export async function setPasswordAndRevokeOthers(
   env: Env,
   userId: string,
   passwordHash: string,
+  currentToken: string,
   now: Date,
 ): Promise<void> {
-  await env.DB.prepare(
-    "UPDATE users SET password_hash = ?, password_updated_at = ?, updated_at = ? WHERE id = ?",
-  )
-    .bind(passwordHash, now.toISOString(), now.toISOString(), userId)
-    .run();
-}
-
-export async function revokeOtherSessions(
-  env: Env,
-  userId: string,
-  currentToken: string,
-): Promise<void> {
   const currentHash = await sessionTokenHash(env, currentToken);
-  await env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
-    .bind(userId, currentHash)
-    .run();
+  const nowIso = now.toISOString();
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE users SET password_hash = ?, password_updated_at = ?, updated_at = ? WHERE id = ?",
+    ).bind(passwordHash, nowIso, nowIso, userId),
+    env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").bind(
+      userId,
+      currentHash,
+    ),
+  ]);
 }
 
 export async function loginWithPassword(

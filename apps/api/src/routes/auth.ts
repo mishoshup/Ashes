@@ -20,9 +20,8 @@ import {
   findPasswordHash,
   loginWithPassword,
   peekLoginToken,
-  revokeOtherSessions,
   revokeSession,
-  setPasswordHash,
+  setPasswordAndRevokeOthers,
 } from "../services/users";
 import type { AppEnv } from "../types";
 
@@ -160,8 +159,13 @@ authRoutes.post("/password", requireAuth, async (c) => {
     }
   }
   const now = new Date();
-  await setPasswordHash(c.env, user.id, await hashPassword(parsed.data.password), now);
-  await revokeOtherSessions(c.env, user.id, c.get("sessionToken"));
+  await setPasswordAndRevokeOthers(
+    c.env,
+    user.id,
+    await hashPassword(parsed.data.password),
+    c.get("sessionToken"),
+    now,
+  );
   return c.body(null, 204);
 });
 

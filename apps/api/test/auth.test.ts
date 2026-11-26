@@ -180,7 +180,9 @@ describe("magic link auth", () => {
     const row = await env.DB.prepare("SELECT password_hash FROM users WHERE email = ?")
       .bind(email)
       .first<{ password_hash: string | null }>();
-    expect(row?.password_hash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/u);
+    expect(row?.password_hash).toMatch(
+      /^\$argon2id\$v=19\$m=19456,t=2,p=1\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$/u,
+    );
   });
 
   it("rejects wrong, missing, and no-password logins", async () => {
