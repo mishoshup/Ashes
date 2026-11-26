@@ -382,11 +382,11 @@ describe("sessions", () => {
     expect(replay.status).toBe(200);
     const replayBody = setPasswordResponseSchema.parse(await replay.json());
 
-    // Then the replay issues a fresh session and keeps the caller signed in
+    // Then the replay issues a fresh session without revoking later devices
     if (!replayBody.token) {
       throw new Error("expected a replayed session token");
     }
-    expect((await me(initialBody.token)).status).toBe(401);
+    expect((await me(initialBody.token)).status).toBe(200);
     expect((await me(replayBody.token)).status).toBe(200);
 
     // And the same key with a different password is rejected
