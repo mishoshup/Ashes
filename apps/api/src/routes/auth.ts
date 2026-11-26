@@ -201,10 +201,7 @@ authRoutes.post("/password", requireAuth, async (c) => {
     c.env,
     user.id,
     c.req.header("Idempotency-Key"),
-    await hashRequest(c.env, {
-      op: "set_password",
-      hasCurrentPassword: Boolean(parsed.data.currentPassword),
-    }),
+    await hashRequest(c.env, parsed.data),
     setPasswordResponseSchema,
     now,
     async () => {

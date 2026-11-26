@@ -365,6 +365,21 @@ describe("sessions", () => {
     expect(replayBody.token).toBeUndefined();
     expect((await me(initialBody.token)).status).toBe(200);
     expect((await me(first)).status).toBe(401);
+
+    // And the same key with a different password is rejected
+    const conflict = await SELF.fetch("https://example.com/api/auth/password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${initialBody.token}`,
+        "Idempotency-Key": key,
+      },
+      body: JSON.stringify({
+        password: "another correct horse battery",
+        currentPassword: "correct horse battery staple",
+      }),
+    });
+    expect(conflict.status).toBe(400);
   });
 
   it("rotates on password change, allows in-flight requests, then detects reuse", async () => {
