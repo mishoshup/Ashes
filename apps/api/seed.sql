@@ -1,0 +1,50 @@
+-- Ashes seed: psychology communities, no user-created communities.
+-- The old single-community seed is removed so local databases pick up the new model.
+DELETE FROM communities WHERE id = 'com_puff';
+
+INSERT OR REPLACE INTO communities (id, slug, name, description, monogram, accent, visibility, created_at, updated_at) VALUES
+('com_pressure','pressure','Pressure','When smoking is how you cope with stress.','PR','#E2603A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_idle','idle','Idle','When smoking fills empty time.','ID','#D9A441','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_people','other-people','Other People','When smoking is social.','OP','#6E8B74','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_feelings','feelings','Feelings','When smoking steps between you and a feeling.','FE','#7C6A9E','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_cravings','cravings','Cravings','What a craving is made of.','CR','#B85C4A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_quitting','quitting','Quitting','Learning from every attempt.','QU','#4F7C8A','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z'),
+('com_learning','learning-from-others','Learning From Others','Psychology, stories, and disagreement.','LO','#8A7A5C','public','2026-11-01T09:00:00.000Z','2026-11-01T09:00:00.000Z');
+
+INSERT OR REPLACE INTO channels (id, community_id, slug, name, description, kind, visibility, created_at) VALUES
+('chn_stress','com_pressure','stress-and-smoking','stress-and-smoking','What pressure does to the urge to smoke.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_pressure','com_pressure','work-and-pressure','work-and-pressure','Deadlines, managers, and the cigarette after.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_boredom','com_idle','boredom','boredom','Waiting, commuting, and empty hands.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_routines','com_idle','routines-and-rituals','routines-and-rituals','The parts of the day that revolve around a cigarette.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_social','com_people','social-influence','social-influence','How other people change when and why you smoke.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_friends','com_people','friends-who-smoke','friends-who-smoke','The people you smoke with, and what that gives you.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_emotional','com_feelings','emotional-triggers','emotional-triggers','What feelings show up around smoking.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_avoidance','com_feelings','stepping-away','stepping-away','The cigarette as permission to leave.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_personal','com_feelings','personal-reflections','personal-reflections','Private-by-default reflections shared only if you choose.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_realized','com_feelings','things-i-have-realized','things-i-have-realized','Small things people noticed about themselves.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_cravings','com_cravings','cravings','cravings','What a craving is actually made of.','mixed','public','2026-11-01T09:00:00.000Z'),
+('chn_dealing','com_cravings','dealing-with-cravings','dealing-with-cravings','For the moment a craving is happening.','chat','public','2026-11-01T09:00:00.000Z'),
+('chn_prep','com_quitting','preparing-to-quit','preparing-to-quit','For people thinking about a quit date.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_attempts','com_quitting','quit-attempts','quit-attempts','Attempts as learning history, not failure history.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_daily','com_quitting','daily-check-ins','daily-check-ins','A short note about today. Nothing owed.','chat','public','2026-11-01T09:00:00.000Z'),
+('chn_setbacks','com_quitting','setbacks-and-restarts','setbacks-and-restarts','Slips, relapses and what came after.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_milestones','com_quitting','smoke-free-milestones','smoke-free-milestones','Quiet celebrations, if you want to share them.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_why','com_learning','why-do-i-smoke','why-do-i-smoke','The question underneath everything.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_story','com_learning','my-smoking-story','my-smoking-story','Longer stories about smoking and identity.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_psych','com_learning','psychology-discussions','psychology-discussions','Ideas about why smoking is hard to put down.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_articles','com_learning','articles-and-research','articles-and-research','Writing and research worth sitting with.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_perspectives','com_learning','different-perspectives','different-perspectives','Respectful disagreement about why people smoke.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_ask','com_learning','ask-the-community','ask-the-community','Ask what you would rather not ask elsewhere.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_worked','com_learning','what-worked-for-me','what-worked-for-me','Personal experience, not universal advice.','forum','public','2026-11-01T09:00:00.000Z'),
+('chn_support','com_learning','supporting-each-other','supporting-each-other','Experience-based support.','chat','public','2026-11-01T09:00:00.000Z');
+
+INSERT OR REPLACE INTO psych_topics (slug, trigger, title, summary, body, reflection_prompt, insight_body, channel_id, created_at) VALUES
+('stress','stress','Smoking when you''re stressed','Pressure and the cigarette can become tangled together.','Stress is not just a feeling in your head. It changes your breathing, your attention, and what feels available in the moment. Smoking may become one of the few things that feels like a pause. That does not mean the cigarette is the only pause available. It means the pause matters.','What usually happens just before you reach for a cigarette?','Maybe smoking has become your way of coping with pressure.','chn_stress','2026-11-01T09:00:00.000Z'),
+('social','social','Smoking around other people','The people around you shape when smoking feels normal.','You may smoke less alone than you think. A group, a shared break, a reason to stand outside: smoking can do social work before nicotine does anything. Noticing who you are with may explain more than noticing how much you smoke.','Do you smoke more when you''re alone or around other people?','Maybe smoking is doing some of the social work for you.','chn_social','2026-11-01T09:00:00.000Z'),
+('boredom','boredom','Smoking when there''s nothing to do','Empty moments can become smoking moments.','Waiting, commuting, finishing a task, having nothing to do with your hands: smoking can fill a gap before you have decided you want one. Boredom is not empty. It is a cue looking for something to attach to.','What are you usually waiting for when you reach for a cigarette?','Maybe it is less about the cigarette and more about filling an empty moment.','chn_routines','2026-11-01T09:00:00.000Z'),
+('routine','routine','The cigarette as part of a routine','Habits live in sequences, not in single decisions.','A cigarette after a meal, with coffee, before a meeting, on the way out: the sequence can start before the thought. Seeing the sequence is different from blaming yourself for it. You are noticing where the pattern lives.','Which part of the day revolves around smoking?','Maybe the cigarette is marking a transition in your day.','chn_routines','2026-11-01T09:00:00.000Z'),
+('emotional','emotional','Smoking when feelings are hard','Anger, loneliness and anxiety can look for an exit.','Smoking can be a way to step away from a feeling without naming it. The feeling does not have to be dramatic. Sometimes it is just discomfort that you would rather not sit with. Noticing the feeling is not the same as fixing it.','What feeling is usually there just before you smoke?','Maybe smoking gives you a way to step away from a feeling.','chn_emotional','2026-11-01T09:00:00.000Z'),
+('reward','reward','What smoking feels like it gives you','The first drag can feel like a reward.','A cigarette can feel earned: after a task, after a difficult conversation, after holding it together. The reward may be real even when the cigarette is not the only way to get it. This is about understanding what the reward means to you.','What do you believe smoking gives you?','Maybe the cigarette is a small reward you feel you have earned.','chn_why','2026-11-01T09:00:00.000Z'),
+('identity','identity','Smoking and identity','Smoking can become part of how you describe yourself.','The smoker who takes breaks, the one who stands outside, the person with a lighter: these can become small identities. You do not have to decide whether that identity is good or bad to notice that it exists.','Does smoking feel like part of who you are?','Maybe smoking still feels like part of how you see yourself.','chn_story','2026-11-01T09:00:00.000Z'),
+('avoidance','avoidance','Smoking to step away','A cigarette can be permission to leave.','Leaving a conversation, a room, a task, a feeling: smoking can create a legitimate pause. The pause may be the point. If so, the question is not only why you smoke, but what you are stepping away from.','What are you stepping away from?','Maybe the cigarette gives you permission to leave a situation.','chn_personal','2026-11-01T09:00:00.000Z'),
+('cravings','cravings','What a craving actually feels like','A craving is a wave with a shape.','Cravings have a before, a middle and an after. They can be tied to a time, a place, a person or a feeling. You do not have to fight a craving to study it. Noticing its shape is already a different relationship with it.','What happens before, during and after a craving?','Maybe the craving is about the pause, not the cigarette.','chn_cravings','2026-11-01T09:00:00.000Z');

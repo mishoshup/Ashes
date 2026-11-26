@@ -6,6 +6,12 @@ export const hexColorSchema = z
   .string()
   .regex(/^#[0-9a-fA-F]{6}$/, "Expected a six-digit hex colour");
 
+export const slugSchema = z
+  .string()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9-]+$/, "Slugs use lowercase letters, numbers and dashes");
+
 export const handleSchema = z
   .string()
   .min(3)

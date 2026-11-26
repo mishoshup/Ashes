@@ -412,3 +412,52 @@ export const rateLimits = sqliteTable("rate_limits", {
   count: integer("count").notNull(),
   resetAt: text("reset_at").notNull(),
 });
+
+export const checkIns = sqliteTable(
+  "check_ins",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    promptId: text("prompt_id").notNull(),
+    answer: text("answer").notNull(),
+    feeling: text("feeling"),
+    context: text("context"),
+    note: text("note"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("check_ins_user_created_idx").on(table.userId, table.createdAt)],
+);
+
+export const checkInTags = sqliteTable(
+  "check_in_tags",
+  {
+    checkInId: text("check_in_id")
+      .notNull()
+      .references(() => checkIns.id, { onDelete: "cascade" }),
+    tag: text("tag").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.checkInId, table.tag] }),
+    index("check_in_tags_tag_idx").on(table.tag),
+  ],
+);
+
+export const psychTopics = sqliteTable(
+  "psych_topics",
+  {
+    slug: text("slug").primaryKey(),
+    trigger: text("trigger").notNull().unique(),
+    title: text("title").notNull(),
+    summary: text("summary").notNull(),
+    body: text("body").notNull(),
+    reflectionPrompt: text("reflection_prompt"),
+    insightBody: text("insight_body").notNull(),
+    channelId: text("channel_id").references(() => channels.id, {
+      onDelete: "set null",
+    }),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [index("psych_topics_channel_idx").on(table.channelId)],
+);

@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply ashes-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply ashes-db --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply ashes-db --remote",
+    "db:seed": "wrangler d1 execute ashes-db --local --file=seed.sql",
+    "db:seed:remote": "wrangler d1 execute ashes-db --remote --file=seed.sql"
   },
   "dependencies": {
     "@ashes/contracts": "workspace:*",
