@@ -74,11 +74,24 @@ export async function withIdempotency<T>(
     return schema.parse(parsed);
   }
 
-  const value = await run();
+  let value: T;
+  try {
+    value = await run();
+  } catch (error) {
+    await env.DB.prepare(
+      `DELETE FROM idempotency_keys
+       WHERE user_id = ? AND key = ? AND response_json = '' AND created_at = ?`,
+    )
+      .bind(userId, key, createdAt)
+      .run();
+    throw error;
+  }
+
   await env.DB.prepare(
-    `UPDATE idempotency_keys SET response_json = ? WHERE user_id = ? AND key = ?`,
+    `UPDATE idempotency_keys SET response_json = ?
+     WHERE user_id = ? AND key = ? AND created_at = ?`,
   )
-    .bind(JSON.stringify(value), userId, key)
+    .bind(JSON.stringify(value), userId, key, createdAt)
     .run();
 
   return value;

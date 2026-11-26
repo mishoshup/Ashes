@@ -6,6 +6,8 @@ import {
 import { SELF, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { withIdempotency } from "../src/services/idempotency";
+
 async function post(
   path: string,
   body: unknown,
@@ -114,6 +116,50 @@ describe("check-in idempotency", () => {
 
     // Then it does not run the write twice
     expect(response.status).toBe(409);
+  });
+
+  it("releases a failed claim so the retry surfaces the operation", async () => {
+    // Given a signed-in user and a claim whose operation throws
+    const token = await newSession("failed-claim@example.com");
+    const id = await userId("failed-claim@example.com");
+    const key = crypto.randomUUID();
+
+    // When the operation fails
+    let thrown: unknown;
+    try {
+      await withIdempotency(
+        env,
+        id,
+        key,
+        "failed-hash",
+        checkInResponseSchema,
+        new Date(),
+        async () => {
+          throw new Error("boom");
+        },
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    // Then the error surfaces and the pending claim is gone
+    expect(thrown).toBeInstanceOf(Error);
+    const row = await env.DB.prepare(
+      "SELECT key FROM idempotency_keys WHERE user_id = ? AND key = ?",
+    )
+      .bind(id, key)
+      .first<{ key: string }>();
+    expect(row).toBeNull();
+
+    // And a retry with the same key is not blocked by a 409
+    const retry = await post(
+      "/api/check-in",
+      { promptId: "trigger", answer: "stress" },
+      token,
+      "local",
+      key,
+    );
+    expect(retry.status).toBe(200);
   });
 
   it("takes over a stale idempotency claim", async () => {
