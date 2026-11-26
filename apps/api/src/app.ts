@@ -132,11 +132,15 @@ export function createApp(): Hono<AppEnv> {
                 ? "unauthorized"
                 : error.status === 404
                   ? "not_found"
-                  : error.status === 429
-                    ? "rate_limited"
-                    : error.status === 413
-                      ? "payload_too_large"
-                      : "bad_request",
+                  : error.status === 403
+                    ? "forbidden"
+                    : error.status === 409
+                      ? "conflict"
+                      : error.status === 429
+                        ? "rate_limited"
+                        : error.status === 413
+                          ? "payload_too_large"
+                          : "bad_request",
             message: error.message,
             requestId,
           },

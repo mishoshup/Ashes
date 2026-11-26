@@ -6,10 +6,26 @@ const KEY_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 const TTL_MS = 24 * 60 * 60 * 1000;
 const STALE_CLAIM_MS = 60 * 1000;
 
-export async function hashRequest(value: unknown): Promise<string> {
-  const encoded = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", encoded);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+export async function hashRequest(env: Env, value: unknown): Promise<string> {
+  if (!env.SESSION_PEPPER && env.ENVIRONMENT === "production") {
+    throw new Error("SESSION_PEPPER is required for idempotency fingerprints");
+  }
+  const secret = env.SESSION_PEPPER || env.PASSWORD_PEPPER || "ashes-dev-idempotency-key";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(JSON.stringify(value)),
+  );
+  return Array.from(new Uint8Array(signature), (byte) => byte.toString(16).padStart(2, "0")).join(
+    "",
+  );
 }
 
 /**

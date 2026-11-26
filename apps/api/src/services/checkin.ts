@@ -2,7 +2,7 @@ import { triggerSchema, type CheckInInput, type PromptId, type Trigger } from "@
 import { HTTPException } from "hono/http-exception";
 import type { Env } from "../types";
 import { PATTERN_THRESHOLD, PROMPTS, promptFor, promptTags } from "../lib/prompts";
-import { hashRequest } from "./idempotency";
+import { sha256Hex } from "../lib/crypto";
 
 export type CheckInTopicRow = {
   slug: string;
@@ -158,7 +158,7 @@ export async function recordCheckIn(
   const tags = [...new Set(promptTags(input.promptId, input.answer))];
   const normalizedClientId = clientId?.trim() || undefined;
   const id = normalizedClientId
-    ? `chk_${(await hashRequest({ userId, clientId: normalizedClientId })).slice(0, 22)}`
+    ? `chk_${(await sha256Hex(`${userId}:${normalizedClientId}`)).slice(0, 22)}`
     : `chk_${crypto.randomUUID().replaceAll("-", "").slice(0, 22)}`;
   const statements = [
     env.DB.prepare(

@@ -201,7 +201,10 @@ authRoutes.post("/password", requireAuth, async (c) => {
     c.env,
     user.id,
     c.req.header("Idempotency-Key"),
-    await hashRequest(parsed.data),
+    await hashRequest(c.env, {
+      op: "set_password",
+      hasCurrentPassword: Boolean(parsed.data.currentPassword),
+    }),
     setPasswordResponseSchema,
     now,
     async () => {
@@ -245,6 +248,11 @@ authRoutes.post("/password", requireAuth, async (c) => {
 });
 
 authRoutes.post("/logout", async (c) => {
+  const remoteIp = c.req.header("CF-Connecting-IP") ?? "local";
+  if (!(await checkRateLimit(c.env, `logout:ip:${remoteIp}`, 30, 60))) {
+    c.header("Retry-After", "60");
+    throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
+  }
   const token = bearerToken(c.req.header("Authorization")) ?? readSessionCookie(c);
   if (token) {
     await revokeSession(c.env, token, "logout", new Date());

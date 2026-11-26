@@ -56,7 +56,7 @@ meRoutes.post("/sessions/revoke-all", requireAuth, async (c) => {
     c.env,
     user.id,
     c.req.header("Idempotency-Key"),
-    await hashRequest(parsed.data),
+    await hashRequest(c.env, parsed.data),
     revokeAllSessionsResponseSchema,
     now,
     async () => {
@@ -92,7 +92,7 @@ meRoutes.delete("/sessions/:id", requireAuth, async (c) => {
     c.env,
     user.id,
     c.req.header("Idempotency-Key"),
-    await hashRequest({ sessionId: parsed.data }),
+    await hashRequest(c.env, { sessionId: parsed.data }),
     revokeSessionResponseSchema,
     now,
     async () => {

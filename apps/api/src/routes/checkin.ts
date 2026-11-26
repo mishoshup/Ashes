@@ -54,7 +54,7 @@ checkInRoutes.post("/", requireAuth, async (c) => {
     c.env,
     user.id,
     c.req.header("Idempotency-Key"),
-    await hashRequest(parsed.data),
+    await hashRequest(c.env, parsed.data),
     checkInResponseSchema,
     now,
     async () =>
