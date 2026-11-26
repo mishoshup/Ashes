@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "bun:test";
 
+import { postCommentOrFail } from "./review/gate";
+
 type Result = { code: number; stdout: string; stderr: string };
 
 async function run(args: string[], env: Record<string, string>): Promise<Result> {
@@ -42,6 +44,7 @@ describe("agent review gate", () => {
 
   it("fails in CI when the filtered diff is too large", async () => {
     // Given a diff over the review budget
+    // When the review runs in CI
     const result = await runWithDiff(
       `diff --git a/apps/api/src/huge.ts b/apps/api/src/huge.ts
 --- a/apps/api/src/huge.ts
@@ -58,11 +61,36 @@ describe("agent review gate", () => {
 
   it("fails in CI when the diff is empty", async () => {
     // Given no reviewable diff
+    // When the review runs in CI
     const result = await runWithDiff("");
 
     // Then the job fails instead of silently skipping
     expect(result.code).toBe(1);
     expect(result.stderr).toContain("empty diff");
+  });
+
+  it("fails when the review comment cannot be posted", async () => {
+    // Given a GitHub comment write that fails
+    const previousCode = process.exitCode;
+    const previousActions = process.env.GITHUB_ACTIONS;
+    process.env.GITHUB_ACTIONS = "";
+
+    try {
+      // When the comment is posted
+      await postCommentOrFail(async () => {
+        throw new Error("boom");
+      });
+
+      // Then the review fails loudly
+      expect(process.exitCode).toBe(1);
+    } finally {
+      process.exitCode = previousCode ?? 0;
+      if (previousActions === undefined) {
+        delete process.env.GITHUB_ACTIONS;
+      } else {
+        process.env.GITHUB_ACTIONS = previousActions;
+      }
+    }
   });
 });
 

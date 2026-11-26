@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { filterDiff } from "./review/diff";
-import { fail } from "./review/gate";
+import { fail, postCommentOrFail } from "./review/gate";
 import { parseReviewJson } from "./review/parse";
 import { buildSystemPrompt, buildUserPrompt, loadRules } from "./review/prompt";
 import { reviewResultSchema } from "./review/schema";
@@ -270,13 +270,7 @@ async function main(): Promise<void> {
   });
 
   if (env.ci) {
-    try {
-      await postComment(env, comment);
-    } catch (error) {
-      fail(
-        `Agent review comment failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    await postCommentOrFail(() => postComment(env, comment));
   } else {
     console.log(comment);
   }
