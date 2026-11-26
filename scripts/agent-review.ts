@@ -203,10 +203,23 @@ async function postComment(env: Env, body: string): Promise<void> {
   }
 }
 
+function fail(message: string): void {
+  console.error(message);
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.error(`::error::${message.replaceAll("\n", " ")}`);
+  }
+  process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   const env = readEnv();
   if (!env.apiKey || !env.model) {
-    console.log("Agent review skipped: REVIEW_API_KEY or REVIEW_MODEL is not configured.");
+    const message = "Agent review did not run: REVIEW_API_KEY or REVIEW_MODEL is not configured.";
+    if (env.ci) {
+      fail(message);
+    } else {
+      console.log(`${message} Local review skipped.`);
+    }
     return;
   }
 
@@ -214,7 +227,12 @@ async function main(): Promise<void> {
   const filtered = filterDiff(rawDiff);
   const diff = filtered.diff;
   if (!diff.trim()) {
-    console.log("Agent review skipped: empty diff.");
+    const message = "Agent review did not run: empty diff.";
+    if (env.ci) {
+      fail(message);
+    } else {
+      console.log(message);
+    }
     return;
   }
   if (filtered.deletedFiles > 0) {
@@ -224,8 +242,8 @@ async function main(): Promise<void> {
     console.log(`Agent review: skipped ${filtered.removedFiles} lockfile/generated/asset file(s).`);
   }
   if (diff.length > MAX_DIFF_CHARS) {
-    console.log(
-      `Agent review skipped: diff is ${diff.length} chars (max ${MAX_DIFF_CHARS}). Split the PR.`,
+    fail(
+      `Agent review did not run: diff is ${diff.length} chars (max ${MAX_DIFF_CHARS}). Split the PR.`,
     );
     return;
   }
@@ -257,8 +275,7 @@ async function main(): Promise<void> {
     try {
       await postComment(env, comment);
     } catch (error) {
-      // Comment posting is infrastructure; keep verified blocking findings blocking.
-      console.error(
+      fail(
         `Agent review comment failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
@@ -277,7 +294,5 @@ async function main(): Promise<void> {
 try {
   await main();
 } catch (error) {
-  // Review infrastructure must not replace deterministic CI. Surface the failure, do not block.
-  console.error(`Agent review failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode ??= 0;
+  fail(`Agent review failed: ${error instanceof Error ? error.message : String(error)}`);
 }
