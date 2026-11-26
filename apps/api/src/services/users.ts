@@ -108,32 +108,69 @@ export async function findOrCreateUser(
   }
 }
 
-export async function createLoginToken(env: Env, email: string, now: Date): Promise<string> {
+export async function findLoginRequest(
+  env: Env,
+  email: string,
+  requestKey: string,
+  now: Date,
+): Promise<boolean> {
+  const row = await env.DB.prepare(
+    "SELECT 1 AS found FROM login_tokens WHERE email = ? AND request_key = ? AND expires_at > ? LIMIT 1",
+  )
+    .bind(email, requestKey, now.toISOString())
+    .first<{ found: number }>();
+  return row?.found === 1;
+}
+
+export async function createLoginToken(
+  env: Env,
+  email: string,
+  now: Date,
+  requestKey?: string,
+): Promise<string> {
   const token = randomToken();
   const tokenHash = await sessionTokenHash(env, token);
   const createdAt = now.toISOString();
   await env.DB.prepare(
-    "INSERT INTO login_tokens (token_hash, email, purpose, created_at, expires_at) VALUES (?, ?, 'magic_link', ?, ?)",
+    "INSERT INTO login_tokens (token_hash, email, purpose, created_at, expires_at, request_key) VALUES (?, ?, 'magic_link', ?, ?, ?)",
   )
-    .bind(tokenHash, email, createdAt, magicLinkExpiry(now))
+    .bind(tokenHash, email, createdAt, magicLinkExpiry(now), requestKey ?? null)
     .run();
   return token;
 }
 
-export async function consumeLoginToken(
+export async function peekLoginToken(env: Env, token: string, now: Date): Promise<string | null> {
+  const tokenHash = await sessionTokenHash(env, token);
+  const row = await env.DB.prepare(
+    "SELECT email FROM login_tokens WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
+  )
+    .bind(tokenHash, now.toISOString())
+    .first<{ email: string }>();
+  return row?.email ?? null;
+}
+
+export async function finalizeLoginToken(
   env: Env,
   token: string,
+  userId: string,
   now: Date,
 ): Promise<string | null> {
   const tokenHash = await sessionTokenHash(env, token);
-  const row = await env.DB.prepare(
-    `UPDATE login_tokens SET consumed_at = ?
-     WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?
-     RETURNING email`,
-  )
-    .bind(now.toISOString(), tokenHash, now.toISOString())
-    .first<{ email: string }>();
-  return row?.email ?? null;
+  const sessionToken = randomToken();
+  const sessionHash = await sessionTokenHash(env, sessionToken);
+  const nowIso = now.toISOString();
+  const consumedAt = nowIso;
+  const results = await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE login_tokens SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
+    ).bind(consumedAt, tokenHash, nowIso),
+    env.DB.prepare(
+      `INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at)
+       SELECT ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM login_tokens WHERE token_hash = ? AND consumed_at = ?)`,
+    ).bind(sessionHash, userId, nowIso, newSessionExpiry(now), nowIso, tokenHash, consumedAt),
+  ]);
+  return (results[0]?.meta.changes ?? 0) === 1 ? sessionToken : null;
 }
 
 export async function createSession(env: Env, userId: string, now: Date): Promise<string> {

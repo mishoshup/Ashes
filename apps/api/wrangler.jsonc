@@ -50,5 +50,6 @@
     "WEB_ORIGIN": "http://localhost:8081",
     "APP_ORIGIN": "http://localhost:8081",
     "EMAIL_FROM": "Ashes <hello@ashes.club>",
+    "ALLOW_DEV_AUTH_TOKEN": "false",
   },
 }

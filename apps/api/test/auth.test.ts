@@ -2,12 +2,20 @@ import { authSessionResponseSchema, magicLinkResponseSchema } from "@ashes/contr
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-async function post(path: string, body: unknown, token?: string) {
+async function post(
+  path: string,
+  body: unknown,
+  token?: string,
+  ip = "local",
+  idempotencyKey?: string,
+) {
   return SELF.fetch(`https://example.com${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "CF-Connecting-IP": ip,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -89,7 +97,54 @@ describe("magic link auth", () => {
   });
 
   it("rejects an unauthenticated me request", async () => {
+    // Given a request with no bearer token
+    // When /api/me is fetched
     const response = await SELF.fetch("https://example.com/api/me");
+
+    // Then the API rejects it
     expect(response.status).toBe(401);
+  });
+
+  it("replays an idempotent magic-link request without a second token", async () => {
+    // Given a magic-link request with an idempotency key
+    const key = "idem-12345678";
+    const email = "idem@example.com";
+    const first = await post("/api/auth/magic-link", { email }, undefined, "idem-ip", key);
+    const firstBody = magicLinkResponseSchema.parse(await first.json());
+
+    // When the same request is retried
+    const second = await post("/api/auth/magic-link", { email }, undefined, "idem-ip", key);
+    const secondBody = magicLinkResponseSchema.parse(await second.json());
+
+    // Then it succeeds without issuing another dev token
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(typeof firstBody.devToken).toBe("string");
+    expect(secondBody.devToken).toBeUndefined();
+  });
+
+  it("rate limits magic links per IP", async () => {
+    // Given ten magic-link requests from one IP
+    for (let index = 0; index < 10; index += 1) {
+      const allowed = await post(
+        "/api/auth/magic-link",
+        { email: `rate-${index}@example.com` },
+        undefined,
+        "203.0.113.10",
+      );
+      expect(allowed.status).toBe(200);
+    }
+
+    // When an eleventh request arrives
+    const blocked = await post(
+      "/api/auth/magic-link",
+      { email: "rate-blocked@example.com" },
+      undefined,
+      "203.0.113.10",
+    );
+
+    // Then it is rejected with a retry hint
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).toBe("60");
   });
 });

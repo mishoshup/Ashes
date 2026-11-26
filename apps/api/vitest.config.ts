@@ -10,6 +10,7 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TEST_MIGRATIONS: migrations,
+          ALLOW_DEV_AUTH_TOKEN: "true",
         },
       },
     }),

@@ -52,10 +52,12 @@ export const loginTokens = sqliteTable(
     expiresAt: text("expires_at").notNull(),
     consumedAt: text("consumed_at"),
     ipHash: text("ip_hash"),
+    requestKey: text("request_key"),
   },
   (table) => [
     index("login_tokens_email_idx").on(table.email, table.expiresAt),
     index("login_tokens_expires_idx").on(table.expiresAt),
+    uniqueIndex("login_tokens_request_key_idx").on(table.email, table.requestKey),
   ],
 );
 
@@ -402,3 +404,9 @@ export const attachments = sqliteTable(
   },
   (table) => [index("attachments_owner_idx").on(table.ownerId)],
 );
+
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull(),
+  resetAt: text("reset_at").notNull(),
+});
