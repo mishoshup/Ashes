@@ -30,17 +30,26 @@ export const sessions = sqliteTable(
   "sessions",
   {
     tokenHash: text("token_hash").primaryKey(),
+    id: text("id"),
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     createdAt: text("created_at").notNull(),
     expiresAt: text("expires_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
+    userAgent: text("user_agent"),
     userAgentHash: text("user_agent_hash"),
+    ipHash: text("ip_hash"),
+    revokedAt: text("revoked_at"),
+    revokedReason: text("revoked_reason"),
+    rotatedFrom: text("rotated_from"),
+    version: integer("version").notNull().default(1),
   },
   (table) => [
+    uniqueIndex("sessions_id_idx").on(table.id),
     index("sessions_user_idx").on(table.userId),
     index("sessions_expires_idx").on(table.expiresAt),
+    index("sessions_user_revoked_idx").on(table.userId, table.revokedAt),
   ],
 );
 

@@ -18,5 +18,7 @@ export type AppEnv = {
     requestId: string;
     user: AuthUser;
     sessionToken: string;
+    sessionId: string;
+    authKind: "bearer" | "cookie";
   };
 };

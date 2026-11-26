@@ -1,7 +1,10 @@
+import { bodyLimit } from "hono/body-limit";
 import { Hono } from "hono";
+import { hasSessionCookie } from "./lib/session-cookie";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
-import { authRoutes, meRoutes } from "./routes/auth";
+import { authRoutes } from "./routes/auth";
+import { meRoutes } from "./routes/me";
 import { checkInRoutes, insightRoutes, topicRoutes } from "./routes/checkin";
 import { communityRoutes } from "./routes/communities";
 import type { AppEnv } from "./types";
@@ -20,15 +23,45 @@ export function createApp(): Hono<AppEnv> {
   });
   app.use("*", async (c, next) => {
     const origin = c.req.header("Origin");
-    const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN];
-    const allowOrigin = origin && allowed.includes(origin) ? origin : allowed[0];
-    if (allowOrigin) {
-      c.header("Access-Control-Allow-Origin", allowOrigin);
+    const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
+    if (origin && allowed.includes(origin)) {
+      c.header("Access-Control-Allow-Origin", origin);
+      c.header("Access-Control-Allow-Credentials", "true");
       c.header("Vary", "Origin");
     }
     await next();
   });
+  app.use("*", async (c, next) => {
+    if (["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
+      return next();
+    }
+    if (!hasSessionCookie(c)) {
+      return next();
+    }
+    const origin = c.req.header("Origin");
+    const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
+    if (!origin || !allowed.includes(origin)) {
+      throw new HTTPException(403, { message: "Cross-origin request blocked" });
+    }
+    await next();
+  });
+  app.use(
+    "*",
+    bodyLimit({
+      maxSize: 256 * 1024,
+      onError: () => {
+        throw new HTTPException(413, { message: "Request body too large" });
+      },
+    }),
+  );
   app.options("*", (c) => {
+    const origin = c.req.header("Origin");
+    const allowed: string[] = [c.env.WEB_ORIGIN, c.env.APP_ORIGIN].filter(Boolean);
+    if (origin && allowed.includes(origin)) {
+      c.header("Access-Control-Allow-Origin", origin);
+      c.header("Access-Control-Allow-Credentials", "true");
+      c.header("Vary", "Origin");
+    }
     c.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     c.header(
       "Access-Control-Allow-Headers",
@@ -99,9 +132,15 @@ export function createApp(): Hono<AppEnv> {
                 ? "unauthorized"
                 : error.status === 404
                   ? "not_found"
-                  : error.status === 429
-                    ? "rate_limited"
-                    : "bad_request",
+                  : error.status === 403
+                    ? "forbidden"
+                    : error.status === 409
+                      ? "conflict"
+                      : error.status === 429
+                        ? "rate_limited"
+                        : error.status === 413
+                          ? "payload_too_large"
+                          : "bad_request",
             message: error.message,
             requestId,
           },

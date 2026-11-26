@@ -13,11 +13,13 @@ description: Cloudflare Workers security: magic-link auth, D1 sessions, Durable 
 - Token: 32 random bytes; store only SHA-256 hash; 10-minute expiry; single use.
 - Verify: atomically consume token, create user if new, create session.
 - Session: 32 random bytes; store SHA-256 hash in D1; 30-day expiry; return raw token once.
-- Bearer header only. Never in a URL, log, query cache, AsyncStorage, analytics, or error report.
-- Logout: revoke session; logout-all: revoke every session for the user.
+- Mobile: Bearer. Web: `HttpOnly`, `SameSite=Lax`, `Secure` in production cookie. Never in a URL, log, query cache, AsyncStorage, analytics, or error report.
+- Logout: soft-revoke the session and clear the cookie. Revoke-all: soft-revoke every session, optionally keeping the current one.
+- Rotation on password change; rotated-token reuse revokes the replacement chain.
+- Device list is live: id, timestamps, user agent, current flag, no token hashes.
 - Password step-up: only from a verified magic-link session. Argon2id via `@phi-ag/argon2` WASM SIMD (the sillyusachi reference) with m=19456 KiB, t=2, p=1; HMAC-SHA256 pepper (required, 32+ chars, fail closed if missing); stored as a PHC string. No open password registration.
 - Changing an existing password requires the current password; revoke other sessions on change.
-- Add email verification, device list, and account deletion before public launch.
+- Add email verification and account deletion before public launch.
 
 ## Authorization
 
@@ -58,6 +60,19 @@ description: Cloudflare Workers security: magic-link auth, D1 sessions, Durable 
 - `wrangler secret put` for production; GitHub Actions step-scoped secrets.
 - Fork PRs get no secrets; the review wrapper holds the write token, while the Roast binary gets no GitHub token.
 - Rotate any secret that appears in a diff or log.
+
+## Sessions
+
+- Server-side session rows are the source of truth; only a token hash is stored.
+- Web: `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, 30-day max age.
+- Mobile: `Authorization: Bearer`; never put a token in a URL, log, analytics event, or query cache.
+- Cookie-authenticated unsafe methods require an allowed `Origin`.
+- `Access-Control-Allow-Credentials: true` only with an exact allowed origin.
+- Session TTL is 30 days. Last-seen updates are throttled to once per 5 minutes.
+- Logout, revoke-one, revoke-all, password change, and rotation are soft revocations.
+- Password change rotates the current session; reuse of a rotated token revokes the replacement chain.
+- Device list returns ids, timestamps, user agent, and current flag. Never token hashes.
+- Do not cache a session across requests. If a cache is added, key it on session id + version.
 
 ## Prompt injection (Roast review)
 
