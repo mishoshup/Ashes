@@ -4,7 +4,8 @@ import { z } from "zod";
 import { parseReviewJson } from "./review/parse";
 import { buildSystemPrompt, buildUserPrompt, loadRules } from "./review/prompt";
 import { reviewResultSchema } from "./review/schema";
-import { changedFiles, validateFindings } from "./review/validate";
+import { sanitizeInline } from "./review/sanitize";
+import { validateFindings } from "./review/validate";
 
 const COMMENT_MARKER = "<!-- ashes-agent-review -->";
 const CACHE_DIR = ".cache/agent-review";
@@ -133,7 +134,7 @@ function renderComment(
     "## Ashes agent review",
     `**Verdict:** ${result.verdict}`,
     "",
-    result.summary,
+    sanitizeInline(result.summary, 1200),
     "",
     `Model: \`${meta.model}\` · diff \`${meta.diffKey.slice(0, 12)}\` · ${meta.dropped} unverifiable finding(s) dropped`,
   ];
@@ -143,26 +144,26 @@ function renderComment(
     lines.push("", "| Severity | Rule | Location |", "|---|---|---|");
     for (const finding of result.findings) {
       lines.push(
-        `| ${finding.severity} | ${finding.ruleId} | \`${finding.path}:${finding.line}\` |`,
+        `| ${finding.severity} | ${sanitizeInline(finding.ruleId, 32)} | \`${sanitizeInline(finding.path, 200)}:${finding.line}\` |`,
       );
     }
     for (const finding of result.findings) {
       lines.push(
         "",
-        `### ${finding.severity.toUpperCase()} · ${finding.ruleId}`,
-        `\`${finding.path}:${finding.line}\``,
+        `### ${finding.severity.toUpperCase()} · ${sanitizeInline(finding.ruleId, 32)}`,
+        `\`${sanitizeInline(finding.path, 200)}:${finding.line}\``,
         "",
-        `Evidence: \`${finding.evidence.replaceAll("`", "'")}\``,
+        `Evidence: \`${sanitizeInline(finding.evidence, 400)}\``,
         "",
-        finding.why,
+        sanitizeInline(finding.why, 600),
         "",
-        `Fix: ${finding.fix}`,
+        `Fix: ${sanitizeInline(finding.fix, 600)}`,
       );
     }
   }
   lines.push(
     "",
-    "Deterministic checks run separately in the `ci` workflow. This review is read-only and cannot merge.",
+    "Deterministic checks run separately in the `ci` workflow. This review is read-only and cannot merge. Human approval is required.",
   );
   return lines.join("\n");
 }
@@ -228,7 +229,7 @@ async function main(): Promise<void> {
         await callModel(
           env,
           buildSystemPrompt(await loadRules()),
-          buildUserPrompt(diff, changedFiles(diff), crypto.randomUUID()),
+          buildUserPrompt(diff, crypto.randomUUID()),
         ),
       );
 
