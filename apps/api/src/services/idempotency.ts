@@ -42,6 +42,7 @@ export async function withIdempotency<T>(
   const staleBefore = new Date(now.getTime() - STALE_CLAIM_MS).toISOString();
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    // oxlint-disable-next-line no-await-in-loop -- the claim must finish before the read
     const claim = await env.DB.prepare(
       `INSERT INTO idempotency_keys
          (user_id, key, request_hash, response_json, created_at, expires_at)
@@ -60,8 +61,10 @@ export async function withIdempotency<T>(
     if (claim.meta.changes > 0) {
       let value: T;
       try {
+        // oxlint-disable-next-line no-await-in-loop -- the write must finish before the response update
         value = await run();
       } catch (error) {
+        // oxlint-disable-next-line no-await-in-loop -- release the claim before rethrowing
         await env.DB.prepare(
           `DELETE FROM idempotency_keys
            WHERE user_id = ? AND key = ? AND response_json = '' AND created_at = ?`,
@@ -71,6 +74,7 @@ export async function withIdempotency<T>(
         throw error;
       }
 
+      // oxlint-disable-next-line no-await-in-loop -- the response update follows the write
       await env.DB.prepare(
         `UPDATE idempotency_keys SET response_json = ?
          WHERE user_id = ? AND key = ? AND created_at = ?`,
@@ -81,6 +85,7 @@ export async function withIdempotency<T>(
       return value;
     }
 
+    // oxlint-disable-next-line no-await-in-loop -- read after the failed claim
     const existing = await env.DB.prepare(
       `SELECT request_hash, response_json FROM idempotency_keys
        WHERE user_id = ? AND key = ?`,

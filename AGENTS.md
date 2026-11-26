@@ -23,7 +23,7 @@ other Markdown files.
 | Tests | **Vitest Workers pool** (Workers runtime + D1/R2/DO) for API; Bun for pure packages; RNTL/Jest for components; Playwright for web/tablet. |
 | CI | GitHub Actions + **Wrangler** preview/prod deploys + **local EAS** builds. 6–8 workflows, not 71. |
 | Web | Expo web static export on **Cloudflare Workers Assets / Pages** |
-| Auth | **Magic-link email OTP + D1 sessions**, with an optional **Argon2id password step-up** via `@phi-ag/argon2` WASM SIMD, matching the sillyusachi reference, with a required 32+ character pepper. No open password registration; set a password from a verified magic-link session. |
+| Auth | **Magic-link email OTP + D1 sessions**. Web uses an `HttpOnly`, `SameSite=Lax` cookie plus an Origin check; mobile uses `Authorization: Bearer`. Sessions rotate on privilege change, revoke one or all, and expose a device list. Optional **Argon2id password step-up** via `@phi-ag/argon2` WASM SIMD, matching the sillyusachi reference, with a required 32+ character pepper. No open password registration; set a password from a verified magic-link session. |
 | Docs | No design docs. No docs tree. Skills are the operational documentation. Product help is added only when users need it. |
 
 ## Repo map

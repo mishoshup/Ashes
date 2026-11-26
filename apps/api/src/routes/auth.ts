@@ -1,10 +1,12 @@
 import {
+  authSessionResponseSchema,
   magicLinkInputSchema,
   magicLinkResponseSchema,
-  verifyMagicLinkInputSchema,
-  authSessionResponseSchema,
   passwordLoginInputSchema,
   setPasswordInputSchema,
+  setPasswordResponseSchema,
+  verifyMagicLinkInputSchema,
+  webAuthSessionResponseSchema,
 } from "@ashes/contracts";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -12,6 +14,8 @@ import { requireAuth } from "../middleware/auth";
 import { sendMagicLink, verifyTurnstile } from "../services/email";
 import { hashPassword, verifyPassword } from "../services/password";
 import { checkRateLimit } from "../lib/rate-limit";
+import { clearSessionCookie, setSessionCookie } from "../lib/session-cookie";
+import { revokeSession, rotateSession, sessionMetaFromRequest } from "../services/sessions";
 import {
   createLoginToken,
   finalizeLoginToken,
@@ -20,7 +24,6 @@ import {
   findPasswordHash,
   loginWithPassword,
   peekLoginToken,
-  revokeSession,
   setPasswordAndRevokeOthers,
 } from "../services/users";
 import type { AppEnv, Env } from "../types";
@@ -29,6 +32,11 @@ export const authRoutes = new Hono<AppEnv>();
 
 function badRequest(message: string): never {
   throw new HTTPException(400, { message });
+}
+
+function noStore(c: { header: (name: string, value: string) => void }): void {
+  c.header("Cache-Control", "no-store");
+  c.header("Pragma", "no-cache");
 }
 
 function requirePasswordPepper(env: Env): string {
@@ -82,6 +90,7 @@ authRoutes.post("/magic-link", async (c) => {
     ok: true,
     ...(devToken ? { devToken } : {}),
   });
+  noStore(c);
   return c.json(response);
 });
 
@@ -102,9 +111,20 @@ authRoutes.post("/verify", async (c) => {
     badRequest("This sign-in link is invalid or expired");
   }
   const { user, isNewUser } = await findOrCreateUser(c.env, email, now);
-  const token = await finalizeLoginToken(c.env, parsed.data.token, user.id, now);
+  const token = await finalizeLoginToken(
+    c.env,
+    parsed.data.token,
+    user.id,
+    now,
+    await sessionMetaFromRequest(c),
+  );
   if (!token) {
     badRequest("This sign-in link is invalid or expired");
+  }
+  noStore(c);
+  if (parsed.data.client === "web") {
+    setSessionCookie(c, token, c.env);
+    return c.json(webAuthSessionResponseSchema.parse({ ok: true, user, isNewUser }));
   }
   return c.json(
     authSessionResponseSchema.parse({
@@ -132,9 +152,27 @@ authRoutes.post("/login", async (c) => {
     throw new HTTPException(429, { message: "Too many attempts. Wait a minute." });
   }
   const pepper = requirePasswordPepper(c.env);
-  const result = await loginWithPassword(c.env, email, parsed.data.password, new Date(), pepper);
+  const result = await loginWithPassword(
+    c.env,
+    email,
+    parsed.data.password,
+    new Date(),
+    pepper,
+    await sessionMetaFromRequest(c),
+  );
   if (!result) {
     throw new HTTPException(401, { message: "Email or password is incorrect" });
+  }
+  noStore(c);
+  if (parsed.data.client === "web") {
+    setSessionCookie(c, result.token, c.env);
+    return c.json(
+      webAuthSessionResponseSchema.parse({
+        ok: true,
+        user: result.user,
+        isNewUser: false,
+      }),
+    );
   }
   return c.json(
     authSessionResponseSchema.parse({
@@ -175,16 +213,27 @@ authRoutes.post("/password", requireAuth, async (c) => {
     c.get("sessionToken"),
     now,
   );
-  return c.body(null, 204);
+  const token = await rotateSession(
+    c.env,
+    user.id,
+    c.get("sessionToken"),
+    now,
+    await sessionMetaFromRequest(c),
+  );
+  if (!token) {
+    throw new HTTPException(401, { message: "Session expired. Sign in again." });
+  }
+  noStore(c);
+  if (c.get("authKind") === "cookie") {
+    setSessionCookie(c, token, c.env);
+    return c.json(setPasswordResponseSchema.parse({ ok: true }));
+  }
+  return c.json(setPasswordResponseSchema.parse({ ok: true, token }));
 });
 
 authRoutes.post("/logout", requireAuth, async (c) => {
-  await revokeSession(c.env, c.get("sessionToken"));
+  await revokeSession(c.env, c.get("sessionToken"), "logout", new Date());
+  clearSessionCookie(c, c.env);
+  noStore(c);
   return c.body(null, 204);
-});
-
-export const meRoutes = new Hono<AppEnv>();
-meRoutes.get("/", requireAuth, (c) => {
-  const user = c.get("user");
-  return c.json({ user, email: user.email });
 });

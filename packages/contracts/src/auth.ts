@@ -14,8 +14,12 @@ export const magicLinkResponseSchema = z.object({
 });
 export type MagicLinkResponse = z.infer<typeof magicLinkResponseSchema>;
 
+export const authClientSchema = z.enum(["web", "mobile"]).default("mobile");
+export type AuthClient = z.infer<typeof authClientSchema>;
+
 export const verifyMagicLinkInputSchema = z.object({
   token: z.string().min(20).max(256),
+  client: authClientSchema,
 });
 export type VerifyMagicLinkInput = z.infer<typeof verifyMagicLinkInputSchema>;
 
@@ -25,6 +29,13 @@ export const authSessionResponseSchema = z.object({
   isNewUser: z.boolean(),
 });
 export type AuthSessionResponse = z.infer<typeof authSessionResponseSchema>;
+
+export const webAuthSessionResponseSchema = z.object({
+  ok: z.literal(true),
+  user: userSummarySchema,
+  isNewUser: z.boolean(),
+});
+export type WebAuthSessionResponse = z.infer<typeof webAuthSessionResponseSchema>;
 
 export const meResponseSchema = z.object({
   user: userSummarySchema,
@@ -49,5 +60,37 @@ export type SetPasswordInput = z.infer<typeof setPasswordInputSchema>;
 export const passwordLoginInputSchema = z.object({
   email: z.email(),
   password: z.string().min(1).max(200),
+  client: authClientSchema,
 });
 export type PasswordLoginInput = z.infer<typeof passwordLoginInputSchema>;
+
+export const sessionSummarySchema = z.object({
+  id: z.string().min(1),
+  createdAt: z.iso.datetime(),
+  lastSeenAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  userAgent: z.string().nullable(),
+  current: z.boolean(),
+});
+export type SessionSummary = z.infer<typeof sessionSummarySchema>;
+
+export const sessionsResponseSchema = z.object({
+  items: z.array(sessionSummarySchema),
+});
+export type SessionsResponse = z.infer<typeof sessionsResponseSchema>;
+
+export const revokeAllSessionsInputSchema = z.object({
+  keepCurrent: z.boolean().default(true),
+});
+export type RevokeAllSessionsInput = z.infer<typeof revokeAllSessionsInputSchema>;
+
+export const revokeAllSessionsResponseSchema = z.object({
+  revoked: z.number().int().min(0),
+});
+export type RevokeAllSessionsResponse = z.infer<typeof revokeAllSessionsResponseSchema>;
+
+export const setPasswordResponseSchema = z.object({
+  ok: z.literal(true),
+  token: z.string().optional(),
+});
+export type SetPasswordResponse = z.infer<typeof setPasswordResponseSchema>;

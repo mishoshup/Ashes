@@ -1,4 +1,8 @@
-import { authSessionResponseSchema, magicLinkResponseSchema } from "@ashes/contracts";
+import {
+  authSessionResponseSchema,
+  magicLinkResponseSchema,
+  setPasswordResponseSchema,
+} from "@ashes/contracts";
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
@@ -158,11 +162,26 @@ describe("magic link auth", () => {
     const session = authSessionResponseSchema.parse(await verified.json());
     const password = "correct horse battery staple";
 
-    // When the user sets a password and logs out
+    // When the user sets a password
     const set = await post("/api/auth/password", { password }, session.token, "pw-ip");
-    expect(set.status).toBe(204);
-    const logout = await post("/api/auth/logout", {}, session.token, "pw-ip");
+    expect(set.status).toBe(200);
+    const setBody = setPasswordResponseSchema.parse(await set.json());
+    if (!setBody.token) {
+      throw new Error("expected a rotated session token");
+    }
+    const rotated = setBody.token;
+
+    // Then the rotated token works, logout revokes it, and the old token is rejected
+    const rotatedMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${rotated}` },
+    });
+    expect(rotatedMe.status).toBe(200);
+    const logout = await post("/api/auth/logout", {}, rotated, "pw-ip");
     expect(logout.status).toBe(204);
+    const oldMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    expect(oldMe.status).toBe(401);
 
     // Then password login returns a session and /api/me works
     const login = await post("/api/auth/login", { email, password }, undefined, "pw-login-ip");
@@ -230,19 +249,29 @@ describe("magic link auth", () => {
     const session = authSessionResponseSchema.parse(await verified.json());
     const oldPassword = "old password is long";
     const newPassword = "new password is longer";
-    await post("/api/auth/password", { password: oldPassword }, session.token, "change-ip");
+    const firstSet = await post(
+      "/api/auth/password",
+      { password: oldPassword },
+      session.token,
+      "change-ip",
+    );
+    const firstBody = setPasswordResponseSchema.parse(await firstSet.json());
+    if (!firstBody.token) {
+      throw new Error("expected a rotated session token");
+    }
+    const activeToken = firstBody.token;
 
     // When changing without / with the wrong current password
     const missing = await post(
       "/api/auth/password",
       { password: newPassword },
-      session.token,
+      activeToken,
       "change-ip",
     );
     const wrong = await post(
       "/api/auth/password",
       { password: newPassword, currentPassword: "not the old one" },
-      session.token,
+      activeToken,
       "change-ip",
     );
     // Then both are rejected
@@ -263,19 +292,27 @@ describe("magic link auth", () => {
     const changed = await post(
       "/api/auth/password",
       { password: newPassword, currentPassword: oldPassword },
-      session.token,
+      activeToken,
       "change-ip",
     );
 
-    // Then it succeeds, the current session survives, and other sessions are revoked
-    expect(changed.status).toBe(204);
+    // Then the current session rotates and the other session is revoked
+    expect(changed.status).toBe(200);
+    const changedBody = setPasswordResponseSchema.parse(await changed.json());
+    if (!changedBody.token) {
+      throw new Error("expected a rotated session token");
+    }
     const currentMe = await SELF.fetch("https://example.com/api/me", {
-      headers: { Authorization: `Bearer ${session.token}` },
+      headers: { Authorization: `Bearer ${changedBody.token}` },
+    });
+    const oldCurrentMe = await SELF.fetch("https://example.com/api/me", {
+      headers: { Authorization: `Bearer ${activeToken}` },
     });
     const secondMe = await SELF.fetch("https://example.com/api/me", {
       headers: { Authorization: `Bearer ${secondSession.token}` },
     });
     expect(currentMe.status).toBe(200);
+    expect(oldCurrentMe.status).toBe(401);
     expect(secondMe.status).toBe(401);
     const oldLogin = await post(
       "/api/auth/login",

@@ -22,8 +22,15 @@ export function sessionTokenHash(env: Env, token: string): Promise<string> {
   return sha256Hex(`${env.SESSION_PEPPER ?? ""}:${token}`);
 }
 
+export const SESSION_TTL_DAYS = 30;
+export const SESSION_MAX_AGE_SECONDS = SESSION_TTL_DAYS * 24 * 60 * 60;
+
 export function newSessionExpiry(now: Date): string {
-  return new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  return new Date(now.getTime() + SESSION_MAX_AGE_SECONDS * 1000).toISOString();
+}
+
+export function hashIp(env: Env, ip: string): Promise<string> {
+  return sha256Hex(`${env.SESSION_PEPPER ?? ""}:ip:${ip}`);
 }
 
 export function magicLinkExpiry(now: Date): string {

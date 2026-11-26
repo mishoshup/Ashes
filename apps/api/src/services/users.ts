@@ -9,7 +9,7 @@ import {
   sessionTokenHash,
 } from "../lib/crypto";
 
-type UserRow = {
+export type UserRow = {
   id: string;
   email: string;
   handle: string;
@@ -28,9 +28,14 @@ export type AuthUser = UserSummary & {
   email: string;
 };
 
+export type SessionMeta = {
+  userAgent?: string | null;
+  ipHash?: string | null;
+};
+
 const ACCENTS = ["#ff6a3d", "#d7a56a", "#8fa98a", "#b58cff", "#6da8ff", "#e06d8c"];
 
-function toAuthUser(row: UserRow): AuthUser {
+export function toAuthUser(row: UserRow): AuthUser {
   return {
     id: row.id,
     email: row.email,
@@ -72,6 +77,10 @@ function accentFor(email: string): string {
 
 export async function findUserByEmail(env: Env, email: string): Promise<UserRow | null> {
   return env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first<UserRow>();
+}
+
+export async function findUserById(env: Env, id: string): Promise<UserRow | null> {
+  return env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(id).first<UserRow>();
 }
 
 async function insertUser(env: Env, email: string, now: string): Promise<UserRow> {
@@ -156,6 +165,7 @@ export async function finalizeLoginToken(
   token: string,
   userId: string,
   now: Date,
+  meta: SessionMeta = {},
 ): Promise<string | null> {
   const tokenHash = await sessionTokenHash(env, token);
   const sessionToken = randomToken();
@@ -167,43 +177,51 @@ export async function finalizeLoginToken(
       "UPDATE login_tokens SET consumed_at = ? WHERE token_hash = ? AND consumed_at IS NULL AND expires_at > ?",
     ).bind(consumedAt, tokenHash, nowIso),
     env.DB.prepare(
-      `INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at)
-       SELECT ?, ?, ?, ?, ?
+      `INSERT INTO sessions
+         (token_hash, id, user_id, created_at, expires_at, last_seen_at, user_agent, ip_hash)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?
        WHERE EXISTS (SELECT 1 FROM login_tokens WHERE token_hash = ? AND consumed_at = ?)`,
-    ).bind(sessionHash, userId, nowIso, newSessionExpiry(now), nowIso, tokenHash, consumedAt),
+    ).bind(
+      sessionHash,
+      newId("ses"),
+      userId,
+      nowIso,
+      newSessionExpiry(now),
+      nowIso,
+      meta.userAgent ?? null,
+      meta.ipHash ?? null,
+      tokenHash,
+      consumedAt,
+    ),
   ]);
   return (results[0]?.meta.changes ?? 0) === 1 ? sessionToken : null;
 }
 
-export async function createSession(env: Env, userId: string, now: Date): Promise<string> {
+export async function createSession(
+  env: Env,
+  userId: string,
+  now: Date,
+  meta: SessionMeta = {},
+): Promise<string> {
   const token = randomToken();
   const tokenHash = await sessionTokenHash(env, token);
   await env.DB.prepare(
-    "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+    `INSERT INTO sessions
+       (token_hash, id, user_id, created_at, expires_at, last_seen_at, user_agent, ip_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(tokenHash, userId, now.toISOString(), newSessionExpiry(now), now.toISOString())
+    .bind(
+      tokenHash,
+      newId("ses"),
+      userId,
+      now.toISOString(),
+      newSessionExpiry(now),
+      now.toISOString(),
+      meta.userAgent ?? null,
+      meta.ipHash ?? null,
+    )
     .run();
   return token;
-}
-
-export async function findSessionUser(
-  env: Env,
-  token: string,
-  now: Date,
-): Promise<AuthUser | null> {
-  const tokenHash = await sessionTokenHash(env, token);
-  const row = await env.DB.prepare(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE s.token_hash = ? AND s.expires_at > ?`,
-  )
-    .bind(tokenHash, now.toISOString())
-    .first<UserRow>();
-  return row ? toAuthUser(row) : null;
-}
-
-export async function revokeSession(env: Env, token: string): Promise<void> {
-  const tokenHash = await sessionTokenHash(env, token);
-  await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(tokenHash).run();
 }
 
 export async function findPasswordHash(env: Env, userId: string): Promise<string | null> {
@@ -226,10 +244,10 @@ export async function setPasswordAndRevokeOthers(
     env.DB.prepare(
       "UPDATE users SET password_hash = ?, password_updated_at = ?, updated_at = ? WHERE id = ?",
     ).bind(passwordHash, nowIso, nowIso, userId),
-    env.DB.prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?").bind(
-      userId,
-      currentHash,
-    ),
+    env.DB.prepare(
+      `UPDATE sessions SET revoked_at = ?, revoked_reason = 'password_change'
+       WHERE user_id = ? AND token_hash != ? AND revoked_at IS NULL`,
+    ).bind(nowIso, userId, currentHash),
   ]);
 }
 
@@ -239,6 +257,7 @@ export async function loginWithPassword(
   password: string,
   now: Date,
   pepper: string,
+  meta: SessionMeta = {},
 ): Promise<{ user: AuthUser; token: string } | null> {
   const row = await findUserByEmail(env, email);
   if (!row?.password_hash) {
@@ -249,6 +268,6 @@ export async function loginWithPassword(
   if (!valid) {
     return null;
   }
-  const token = await createSession(env, row.id, now);
+  const token = await createSession(env, row.id, now, meta);
   return { user: toAuthUser(row), token };
 }
