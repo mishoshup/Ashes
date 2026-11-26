@@ -52,7 +52,7 @@ authRoutes.post("/magic-link", async (c) => {
     badRequest("Invalid idempotency key");
   }
   const now = new Date();
-  if (requestKey && (await findLoginRequest(c.env, email, requestKey, now))) {
+  if (requestKey && (await findLoginRequest(c.env, email, requestKey))) {
     return c.json({ ok: true });
   }
 

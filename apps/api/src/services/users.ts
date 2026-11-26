@@ -112,12 +112,11 @@ export async function findLoginRequest(
   env: Env,
   email: string,
   requestKey: string,
-  now: Date,
 ): Promise<boolean> {
   const row = await env.DB.prepare(
-    "SELECT 1 AS found FROM login_tokens WHERE email = ? AND request_key = ? AND expires_at > ? LIMIT 1",
+    "SELECT 1 AS found FROM login_tokens WHERE email = ? AND request_key = ? LIMIT 1",
   )
-    .bind(email, requestKey, now.toISOString())
+    .bind(email, requestKey)
     .first<{ found: number }>();
   return row?.found === 1;
 }

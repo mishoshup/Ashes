@@ -123,6 +123,33 @@ describe("magic link auth", () => {
     expect(secondBody.devToken).toBeUndefined();
   });
 
+  it("replays an idempotency key after the token expires", async () => {
+    // Given a magic link that has expired
+    const key = "idem-expired-1234";
+    const email = "expired-idem@example.com";
+    const first = await post("/api/auth/magic-link", { email }, undefined, "idem-expired-ip", key);
+    expect(first.status).toBe(200);
+    await env.DB.prepare(
+      "UPDATE login_tokens SET expires_at = ? WHERE email = ? AND request_key = ?",
+    )
+      .bind("2020-01-01T00:00:00.000Z", email, key)
+      .run();
+
+    // When the same idempotent request is retried
+    const second = await post("/api/auth/magic-link", { email }, undefined, "idem-expired-ip", key);
+    const body = magicLinkResponseSchema.parse(await second.json());
+
+    // Then it is treated as the same request, not a new token or a constraint error
+    expect(second.status).toBe(200);
+    expect(body.devToken).toBeUndefined();
+    const row = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM login_tokens WHERE email = ? AND request_key = ?",
+    )
+      .bind(email, key)
+      .first<{ count: number }>();
+    expect(row?.count).toBe(1);
+  });
+
   it("rate limits magic links per IP", async () => {
     // Given ten magic-link requests from one IP
     for (let index = 0; index < 10; index += 1) {
